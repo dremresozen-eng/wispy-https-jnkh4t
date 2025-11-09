@@ -24,6 +24,8 @@ import {
   Activity,
   TrendingUp,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 
@@ -32,6 +34,16 @@ const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp6aWZnYmtsam9meXpseGJ6eXBrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI2MjQyODMsImV4cCI6MjA3ODIwMDI4M30.8aIx6Ta_ErN2YgiZlr9CJiyb1HIvE-waRuksr42k1Rg";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// AUTHORIZED USERS DATABASE
+const AUTHORIZED_USERS = [
+  { name: "Özlem Şahin", password: "0000", role: "admin" },
+  { name: "Mehmet Orkun Sevik", password: "0001", role: "surgeon" },
+  { name: "Aslan Aykut", password: "0002", role: "surgeon" },
+  { name: "Emre Sözen", password: "0004", role: "surgeon" },
+  { name: "Tuğçe Kılıçarslan", password: "0005", role: "surgeon" },
+  { name: "Yiğitalp Akpınar", password: "0006", role: "surgeon" },
+];
 
 export default function App() {
   const [patients, setPatients] = useState([]);
@@ -49,6 +61,10 @@ export default function App() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [selectedPatients, setSelectedPatients] = useState([]);
   const [showBulkSchedule, setShowBulkSchedule] = useState(false);
+  
+  // PAGINATION STATE
+  const [currentPage, setCurrentPage] = useState(1);
+  const [patientsPerPage] = useState(12); // Show 12 patients per page (4x3 grid)
 
   const surgeryTypes = [
     "Phacoemulsification",
@@ -111,7 +127,7 @@ export default function App() {
     "Completed",
   ];
 
-  // Simple authentication - in production, use Supabase Auth
+  // Check for logged in user
   useEffect(() => {
     const savedUser = localStorage.getItem("surgicalWaitlistUser");
     if (savedUser) {
@@ -191,6 +207,17 @@ export default function App() {
     })
   );
 
+  // PAGINATION LOGIC
+  const indexOfLastPatient = currentPage * patientsPerPage;
+  const indexOfFirstPatient = indexOfLastPatient - patientsPerPage;
+  const currentPatients = filteredPatients.slice(indexOfFirstPatient, indexOfLastPatient);
+  const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterUrgency, filterStatus, filterSurgeon, filterSurgeryType]);
+
   const scheduledPatients = patients
     .filter((p) => p.scheduled_date)
     .sort((a, b) => new Date(a.scheduled_date) - new Date(b.scheduled_date));
@@ -211,20 +238,41 @@ export default function App() {
     longWait: patients.filter(p => calculateWaitDays(p.added_date) > 30 && p.status !== "Completed").length,
   };
 
-  // Login Modal
+  // SECURE LOGIN MODAL
   const LoginModal = () => {
-    const [username, setUsername] = useState("");
-    const [role, setRole] = useState("surgeon");
+    const [selectedName, setSelectedName] = useState("");
+    const [password, setPassword] = useState("");
+    const [error, setError] = useState("");
 
     const handleLogin = () => {
-      if (!username.trim()) {
-        alert("Please enter your name");
+      if (!selectedName) {
+        setError("Please select your name");
         return;
       }
-      const user = { name: username, role, loginTime: new Date().toISOString() };
-      localStorage.setItem("surgicalWaitlistUser", JSON.stringify(user));
-      setCurrentUser(user);
-      setShowLoginModal(false);
+      if (!password) {
+        setError("Please enter your password");
+        return;
+      }
+
+      // Find user
+      const user = AUTHORIZED_USERS.find(
+        u => u.name === selectedName && u.password === password
+      );
+
+      if (user) {
+        const userData = { 
+          name: user.name, 
+          role: user.role, 
+          loginTime: new Date().toISOString() 
+        };
+        localStorage.setItem("surgicalWaitlistUser", JSON.stringify(userData));
+        setCurrentUser(userData);
+        setShowLoginModal(false);
+        setError("");
+      } else {
+        setError("Invalid password! Please try again.");
+        setPassword("");
+      }
     };
 
     return (
@@ -238,35 +286,50 @@ export default function App() {
             <p className="text-gray-600 mt-2">Please sign in to continue</p>
           </div>
 
+          {error && (
+            <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3 mb-4 flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-red-600" />
+              <p className="text-red-800 text-sm font-semibold">{error}</p>
+            </div>
+          )}
+
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Your Name
+                Select Your Name
               </label>
-              <input
-                type="text"
-                className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                placeholder="Dr. Smith"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
-              />
+              <select
+                className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none bg-white"
+                value={selectedName}
+                onChange={(e) => {
+                  setSelectedName(e.target.value);
+                  setError("");
+                }}
+              >
+                <option value="">-- Choose your name --</option>
+                {AUTHORIZED_USERS.map((user) => (
+                  <option key={user.name} value={user.name}>
+                    {user.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Role
+                Password
               </label>
-              <select
-                className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none bg-white"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-              >
-                <option value="admin">Administrator</option>
-                <option value="surgeon">Surgeon</option>
-                <option value="nurse">Nurse</option>
-                <option value="viewer">Viewer</option>
-              </select>
+              <input
+                type="password"
+                className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setError("");
+                }}
+                onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
+              />
             </div>
 
             <button
@@ -276,15 +339,23 @@ export default function App() {
               Sign In
             </button>
           </div>
+
+          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+            <p className="text-xs text-gray-600 text-center">
+              🔒 Secure Access - Authorized Personnel Only
+            </p>
+          </div>
         </div>
       </div>
     );
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("surgicalWaitlistUser");
-    setCurrentUser(null);
-    setShowLoginModal(true);
+    if (window.confirm("Are you sure you want to logout?")) {
+      localStorage.removeItem("surgicalWaitlistUser");
+      setCurrentUser(null);
+      setShowLoginModal(true);
+    }
   };
 
   // Delete patient function
@@ -476,6 +547,76 @@ export default function App() {
       )}
     </div>
   );
+
+  // Pagination Component
+  const Pagination = () => {
+    if (totalPages <= 1) return null;
+
+    return (
+      <div className="flex items-center justify-center gap-2 mt-6 mb-4">
+        <button
+          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+          disabled={currentPage === 1}
+          className={`p-2 rounded-lg border-2 ${
+            currentPage === 1
+              ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+              : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+
+        <div className="flex gap-2">
+          {[...Array(totalPages)].map((_, index) => {
+            const pageNumber = index + 1;
+            // Show first page, last page, current page, and pages around current
+            if (
+              pageNumber === 1 ||
+              pageNumber === totalPages ||
+              (pageNumber >= currentPage - 1 && pageNumber <= currentPage + 1)
+            ) {
+              return (
+                <button
+                  key={pageNumber}
+                  onClick={() => setCurrentPage(pageNumber)}
+                  className={`w-10 h-10 rounded-lg border-2 font-semibold ${
+                    currentPage === pageNumber
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  {pageNumber}
+                </button>
+              );
+            } else if (
+              pageNumber === currentPage - 2 ||
+              pageNumber === currentPage + 2
+            ) {
+              return <span key={pageNumber} className="w-10 h-10 flex items-center justify-center text-gray-400">...</span>;
+            }
+            return null;
+          })}
+        </div>
+
+        <button
+          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+          disabled={currentPage === totalPages}
+          className={`p-2 rounded-lg border-2 ${
+            currentPage === totalPages
+              ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+              : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          <ChevronRight className="w-5 h-5" />
+        </button>
+
+        <div className="ml-4 text-sm text-gray-600">
+          Page <strong>{currentPage}</strong> of <strong>{totalPages}</strong>
+          <span className="ml-2">({filteredPatients.length} patients)</span>
+        </div>
+      </div>
+    );
+  };
 
   const AddPatientModal = () => {
     const [formData, setFormData] = useState({
@@ -1345,102 +1486,107 @@ export default function App() {
 
         {/* Main Content */}
         {currentView === "waitlist" ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredPatients.map((patient) => (
-              <div
-                key={patient.id}
-                className={`rounded-2xl border-2 p-6 cursor-pointer hover:shadow-2xl transition-all transform hover:-translate-y-1 ${
-                  statusColors[patient.status].color
-                } ${selectedPatients.includes(patient.id) ? 'ring-4 ring-blue-500' : ''}`}
-              >
-                {/* Selection checkbox */}
-                <div className="flex items-center justify-between mb-3">
-                  <input
-                    type="checkbox"
-                    checked={selectedPatients.includes(patient.id)}
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      if (selectedPatients.includes(patient.id)) {
-                        setSelectedPatients(selectedPatients.filter(id => id !== patient.id));
-                      } else {
-                        setSelectedPatients([...selectedPatients, patient.id]);
-                      }
-                    }}
-                    className="w-5 h-5 rounded"
-                  />
-                  <span
-                    className={`w-4 h-4 rounded-full ${
-                      urgencyLevels[patient.urgency].dot
-                    } shadow-lg`}
-                    title={urgencyLevels[patient.urgency].label}
-                  />
-                </div>
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {currentPatients.map((patient) => (
+                <div
+                  key={patient.id}
+                  className={`rounded-2xl border-2 p-6 cursor-pointer hover:shadow-2xl transition-all transform hover:-translate-y-1 ${
+                    statusColors[patient.status].color
+                  } ${selectedPatients.includes(patient.id) ? 'ring-4 ring-blue-500' : ''}`}
+                >
+                  {/* Selection checkbox */}
+                  <div className="flex items-center justify-between mb-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedPatients.includes(patient.id)}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        if (selectedPatients.includes(patient.id)) {
+                          setSelectedPatients(selectedPatients.filter(id => id !== patient.id));
+                        } else {
+                          setSelectedPatients([...selectedPatients, patient.id]);
+                        }
+                      }}
+                      className="w-5 h-5 rounded"
+                    />
+                    <span
+                      className={`w-4 h-4 rounded-full ${
+                        urgencyLevels[patient.urgency].dot
+                      } shadow-lg`}
+                      title={urgencyLevels[patient.urgency].label}
+                    />
+                  </div>
 
-                <div onClick={() => setSelectedPatient(patient)}>
-                  <div className="mb-4">
-                    <h3 className="font-bold text-xl text-gray-800 mb-1">
-                      {patient.name}
-                    </h3>
-                    <p className="text-sm text-gray-600">
-                      ID: {patient.patient_id}
-                    </p>
-                  </div>
-                  
-                  <div className="space-y-3 text-sm">
-                    <div className="flex items-center gap-2 text-gray-700">
-                      <Stethoscope className="w-4 h-4 flex-shrink-0" />
-                      <span className="font-medium">{patient.surgery_type}</span>
+                  <div onClick={() => setSelectedPatient(patient)}>
+                    <div className="mb-4">
+                      <h3 className="font-bold text-xl text-gray-800 mb-1">
+                        {patient.name}
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        ID: {patient.patient_id}
+                      </p>
                     </div>
                     
-                    {patient.surgeon && (
+                    <div className="space-y-3 text-sm">
                       <div className="flex items-center gap-2 text-gray-700">
-                        <User className="w-4 h-4 flex-shrink-0" />
-                        <span>{patient.surgeon}</span>
+                        <Stethoscope className="w-4 h-4 flex-shrink-0" />
+                        <span className="font-medium">{patient.surgery_type}</span>
                       </div>
-                    )}
-                    
-                    <div className="flex items-center gap-2 text-gray-700">
-                      <Clock className="w-4 h-4 flex-shrink-0" />
-                      <span>
-                        Waiting <strong>{calculateWaitDays(patient.added_date)}</strong> days
-                        {calculateWaitDays(patient.added_date) > 30 && (
-                          <Bell className="w-3 h-3 inline ml-1 text-amber-600" />
-                        )}
-                      </span>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 text-gray-700">
-                      {patient.status === "Completed" ? (
-                        <CheckCircle className="w-4 h-4 flex-shrink-0 text-green-600" />
-                      ) : (
-                        <AlertCircle className="w-4 h-4 flex-shrink-0 text-orange-600" />
+                      
+                      {patient.surgeon && (
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <User className="w-4 h-4 flex-shrink-0" />
+                          <span>{patient.surgeon}</span>
+                        </div>
                       )}
-                      <span className="font-semibold">{patient.status}</span>
-                    </div>
-                  </div>
-                  
-                  {patient.scheduled_date && (
-                    <div className="mt-4 pt-4 border-t-2 border-gray-300">
-                      <div className="flex items-center gap-2 text-sm">
-                        <Calendar className="w-4 h-4 text-blue-600" />
-                        <span className="font-bold text-gray-800">
-                          {new Date(patient.scheduled_date).toLocaleDateString()}
+                      
+                      <div className="flex items-center gap-2 text-gray-700">
+                        <Clock className="w-4 h-4 flex-shrink-0" />
+                        <span>
+                          Waiting <strong>{calculateWaitDays(patient.added_date)}</strong> days
+                          {calculateWaitDays(patient.added_date) > 30 && (
+                            <Bell className="w-3 h-3 inline ml-1 text-amber-600" />
+                          )}
                         </span>
                       </div>
+                      
+                      <div className="flex items-center gap-2 text-gray-700">
+                        {patient.status === "Completed" ? (
+                          <CheckCircle className="w-4 h-4 flex-shrink-0 text-green-600" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 flex-shrink-0 text-orange-600" />
+                        )}
+                        <span className="font-semibold">{patient.status}</span>
+                      </div>
                     </div>
-                  )}
+                    
+                    {patient.scheduled_date && (
+                      <div className="mt-4 pt-4 border-t-2 border-gray-300">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Calendar className="w-4 h-4 text-blue-600" />
+                          <span className="font-bold text-gray-800">
+                            {new Date(patient.scheduled_date).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-            {filteredPatients.length === 0 && (
-              <div className="col-span-full text-center py-20">
-                <AlertCircle className="w-20 h-20 text-gray-300 mx-auto mb-4" />
-                <p className="text-xl text-gray-500 font-medium">
-                  No patients found
-                </p>
-              </div>
-            )}
-          </div>
+              ))}
+              {currentPatients.length === 0 && (
+                <div className="col-span-full text-center py-20">
+                  <AlertCircle className="w-20 h-20 text-gray-300 mx-auto mb-4" />
+                  <p className="text-xl text-gray-500 font-medium">
+                    No patients found
+                  </p>
+                </div>
+              )}
+            </div>
+            
+            {/* Pagination */}
+            <Pagination />
+          </>
         ) : (
           <ScheduleView />
         )}
