@@ -814,7 +814,7 @@ export default function App() {
                 <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-3 rounded-xl">
                   <Stethoscope className="text-white w-8 h-8" />
                 </div>
-                Surgical Waitlist Manager
+                Surgical Waitlist Manager v2
               </h1>
               <p className="text-gray-600 mt-2 ml-1">
                 Manage and track surgical procedures
