@@ -282,7 +282,7 @@ export default function App() {
             <div className="bg-gradient-to-r from-blue-600 to-blue-700 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
               <Stethoscope className="w-8 h-8 text-white" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-800">Surgical Waitlist Manager</h2>
+            <h2 className="text-2xl font-bold text-gray-800">Surgical Waitlist Manager v0.4</h2>
             <p className="text-gray-600 mt-2">Please sign in to continue</p>
           </div>
 
@@ -1346,7 +1346,7 @@ export default function App() {
                 <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-3 rounded-xl">
                   <Stethoscope className="text-white w-8 h-8" />
                 </div>
-                Surgical Waitlist Manager
+                Surgical Waitlist Manager v0.4
               </h1>
               <p className="text-gray-600 mt-2 ml-1">
                 Logged in as: <strong>{currentUser.name}</strong> ({currentUser.role})
