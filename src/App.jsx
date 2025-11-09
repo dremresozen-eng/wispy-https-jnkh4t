@@ -45,24 +45,44 @@ export default function App() {
   const urgencyLevels = {
     urgent: {
       label: "Urgent",
-      color: "bg-red-50 border-red-300",
-      textColor: "text-red-800",
       badge: "bg-gradient-to-r from-red-500 to-red-600",
       dot: "bg-red-500",
+      borderColor: "#ef4444",
     },
     soon: {
       label: "Soon",
-      color: "bg-amber-50 border-amber-300",
-      textColor: "text-amber-800",
       badge: "bg-gradient-to-r from-amber-500 to-amber-600",
       dot: "bg-amber-500",
+      borderColor: "#f59e0b",
     },
     routine: {
       label: "Routine",
-      color: "bg-emerald-50 border-emerald-300",
-      textColor: "text-emerald-800",
       badge: "bg-gradient-to-r from-emerald-500 to-emerald-600",
       dot: "bg-emerald-500",
+      borderColor: "#10b981",
+    },
+  };
+
+  const statusColors = {
+    "Waiting": {
+      color: "bg-gray-50 border-gray-300",
+      textColor: "text-gray-800",
+    },
+    "Pre-op Prep": {
+      color: "bg-yellow-50 border-yellow-300",
+      textColor: "text-yellow-800",
+    },
+    "Ready": {
+      color: "bg-orange-50 border-orange-300",
+      textColor: "text-orange-800",
+    },
+    "Scheduled": {
+      color: "bg-red-50 border-red-300",
+      textColor: "text-red-800",
+    },
+    "Completed": {
+      color: "bg-green-50 border-green-300",
+      textColor: "text-green-800",
     },
   };
 
@@ -743,9 +763,10 @@ export default function App() {
                   <div
                     key={patient.id}
                     onClick={() => setSelectedPatient(patient)}
-                    className={`border-l-4 p-5 cursor-pointer hover:shadow-lg transition-all rounded-lg border ${
-                      urgencyLevels[patient.urgency].color
+                    className={`border-l-4 p-5 cursor-pointer hover:shadow-lg transition-all rounded-lg ${
+                      statusColors[patient.status].color
                     }`}
+                    style={{ borderLeftColor: urgencyLevels[patient.urgency].borderColor }}
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
@@ -757,6 +778,7 @@ export default function App() {
                             className={`w-3 h-3 rounded-full ${
                               urgencyLevels[patient.urgency].dot
                             }`}
+                            title={urgencyLevels[patient.urgency].label}
                           />
                         </div>
                         <p className="text-sm text-gray-600 mb-3">
@@ -814,7 +836,7 @@ export default function App() {
                 <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-3 rounded-xl">
                   <Stethoscope className="text-white w-8 h-8" />
                 </div>
-                Surgical Waitlist Manager v2
+                Surgical Waitlist Manager
               </h1>
               <p className="text-gray-600 mt-2 ml-1">
                 Manage and track surgical procedures
@@ -900,7 +922,7 @@ export default function App() {
                 key={patient.id}
                 onClick={() => setSelectedPatient(patient)}
                 className={`rounded-2xl border-2 p-6 cursor-pointer hover:shadow-2xl transition-all transform hover:-translate-y-1 ${
-                  urgencyLevels[patient.urgency].color
+                  statusColors[patient.status].color
                 }`}
               >
                 <div className="flex justify-between items-start mb-4">
@@ -916,6 +938,7 @@ export default function App() {
                     className={`w-4 h-4 rounded-full ${
                       urgencyLevels[patient.urgency].dot
                     } shadow-lg`}
+                    title={urgencyLevels[patient.urgency].label}
                   />
                 </div>
                 
