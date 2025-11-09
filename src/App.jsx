@@ -10,6 +10,10 @@ import {
   User,
   Stethoscope,
   CalendarDays,
+  X,
+  Edit3,
+  Trash2,
+  FileText,
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 
@@ -41,18 +45,24 @@ export default function App() {
   const urgencyLevels = {
     urgent: {
       label: "Urgent",
-      color: "bg-red-100 border-red-400 text-red-900 shadow-sm",
-      badge: "bg-red-500",
+      color: "bg-red-50 border-red-300",
+      textColor: "text-red-800",
+      badge: "bg-gradient-to-r from-red-500 to-red-600",
+      dot: "bg-red-500",
     },
     soon: {
       label: "Soon",
-      color: "bg-yellow-100 border-yellow-400 text-yellow-900 shadow-sm",
-      badge: "bg-yellow-500",
+      color: "bg-amber-50 border-amber-300",
+      textColor: "text-amber-800",
+      badge: "bg-gradient-to-r from-amber-500 to-amber-600",
+      dot: "bg-amber-500",
     },
     routine: {
       label: "Routine",
-      color: "bg-green-100 border-green-400 text-green-900 shadow-sm",
-      badge: "bg-green-500",
+      color: "bg-emerald-50 border-emerald-300",
+      textColor: "text-emerald-800",
+      badge: "bg-gradient-to-r from-emerald-500 to-emerald-600",
+      dot: "bg-emerald-500",
     },
   };
 
@@ -155,7 +165,6 @@ export default function App() {
         return;
       }
 
-      // Check for duplicate patient ID
       try {
         const { data: existingPatients, error: checkError } = await supabase
           .from("patients")
@@ -173,7 +182,6 @@ export default function App() {
           return;
         }
 
-        // If no duplicate, proceed to insert
         const { error } = await supabase.from("patients").insert([
           {
             patient_key: `patient-${Date.now()}`,
@@ -214,43 +222,31 @@ export default function App() {
     };
 
     return (
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "rgba(0,0,0,0.5)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 9999,
-          overflowY: "auto",
-          padding: "20px",
-        }}
-      >
-        <div
-          style={{
-            backgroundColor: "white",
-            borderRadius: "8px",
-            padding: "24px",
-            maxWidth: "600px",
-            width: "100%",
-            maxHeight: "90vh",
-            overflowY: "auto",
-          }}
-        >
-          <h2 className="text-2xl font-bold mb-4">Add New Patient</h2>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full my-8 max-h-[90vh] overflow-y-auto">
+          <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-t-2xl flex justify-between items-center">
+            <h2 className="text-2xl font-bold flex items-center gap-3">
+              <Plus className="w-7 h-7" />
+              Add New Patient
+            </h2>
+            <button
+              onClick={() => setShowAddModal(false)}
+              className="hover:bg-white/20 p-2 rounded-lg transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+
+          <div className="p-6 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Patient Name *
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Patient Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                  placeholder="Enter patient name"
                   value={formData.name}
                   onChange={(e) =>
                     setFormData({ ...formData, name: e.target.value })
@@ -258,12 +254,13 @@ export default function App() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Patient ID *
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Patient ID <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                  placeholder="Enter patient ID"
                   value={formData.patient_id}
                   onChange={(e) =>
                     setFormData({ ...formData, patient_id: e.target.value })
@@ -273,12 +270,13 @@ export default function App() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Case Information
               </label>
               <textarea
-                className="w-full border rounded px-3 py-2 h-24"
-                placeholder="General information..."
+                className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none resize-none"
+                placeholder="General case information..."
+                rows="4"
                 value={formData.case_information}
                 onChange={(e) =>
                   setFormData({ ...formData, case_information: e.target.value })
@@ -286,13 +284,13 @@ export default function App() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Surgery Type
                 </label>
                 <select
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none bg-white"
                   value={formData.surgery_type}
                   onChange={(e) =>
                     setFormData({ ...formData, surgery_type: e.target.value })
@@ -306,11 +304,11 @@ export default function App() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Urgency
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Urgency Level
                 </label>
                 <select
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none bg-white"
                   value={formData.urgency}
                   onChange={(e) =>
                     setFormData({ ...formData, urgency: e.target.value })
@@ -324,10 +322,13 @@ export default function App() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Surgeon</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Surgeon
+              </label>
               <input
                 type="text"
-                className="w-full border rounded px-3 py-2"
+                className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                placeholder="Surgeon name"
                 value={formData.surgeon}
                 onChange={(e) =>
                   setFormData({ ...formData, surgeon: e.target.value })
@@ -335,59 +336,70 @@ export default function App() {
               />
             </div>
 
-            <div className="border-t pt-4">
-              <h3 className="font-medium mb-2">Pre-Op Requirements</h3>
-              <div className="space-y-2">
-                <div>
-                  <label className="block text-sm mb-1">IOL Diopter</label>
-                  <input
-                    type="text"
-                    className="w-full border rounded px-3 py-2"
-                    value={formData.iol_diopter}
-                    onChange={(e) =>
-                      setFormData({ ...formData, iol_diopter: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm mb-1">Equipment Needed</label>
-                  <input
-                    type="text"
-                    className="w-full border rounded px-3 py-2"
-                    value={formData.equipment_needed}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        equipment_needed: e.target.value,
-                      })
-                    }
-                  />
+            <div className="border-t-2 border-gray-200 pt-6">
+              <h3 className="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-blue-600" />
+                Pre-Op Requirements
+              </h3>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      IOL Diopter
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                      placeholder="e.g., +22.0"
+                      value={formData.iol_diopter}
+                      onChange={(e) =>
+                        setFormData({ ...formData, iol_diopter: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Equipment Needed
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                      placeholder="Special equipment"
+                      value={formData.equipment_needed}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          equipment_needed: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
                 </div>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">
-                Upload Photo
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Upload Document/Photo
               </label>
               <input
                 type="file"
                 accept="image/*"
                 onChange={handlePhotoUpload}
-                className="w-full border rounded px-3 py-2"
+                className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 file:font-semibold"
               />
             </div>
 
-            <div className="flex gap-2 justify-end">
+            <div className="flex gap-3 justify-end pt-4">
               <button
                 onClick={() => setShowAddModal(false)}
-                className="px-4 py-2 border rounded hover:bg-gray-100"
+                className="px-6 py-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 font-semibold transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSubmit}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 font-semibold shadow-lg shadow-blue-500/30 transition-all"
               >
                 Add Patient
               </button>
@@ -443,238 +455,249 @@ export default function App() {
     };
 
     return (
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "rgba(0,0,0,0.5)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 9999,
-          overflowY: "auto",
-          padding: "20px",
-        }}
-      >
-        <div
-          style={{
-            backgroundColor: "white",
-            borderRadius: "8px",
-            padding: "24px",
-            maxWidth: "900px",
-            width: "100%",
-            maxHeight: "90vh",
-            overflowY: "auto",
-          }}
-        >
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <h2 className="text-2xl font-bold">{editData.name}</h2>
-              <p className="text-gray-600">ID: {editData.patient_id}</p>
-            </div>
-            <span
-              className={`px-3 py-1 rounded-full text-sm font-medium ${
-                urgencyLevels[editData.urgency].color
-              }`}
-            >
-              {urgencyLevels[editData.urgency].label}
-            </span>
-          </div>
-
-          <div className="mb-6">
-            <label className="block text-sm font-bold mb-2 text-blue-800">
-              Case Information
-            </label>
-            <textarea
-              className="w-full border-2 rounded px-3 py-2 h-24 bg-blue-50"
-              value={editData.case_information || ""}
-              onChange={(e) =>
-                setEditData({ ...editData, case_information: e.target.value })
-              }
-            />
-          </div>
-
-          {editData.photo && (
-            <div className="mb-6">
-              <label className="block text-sm font-medium mb-2">
-                Scanned Document
-              </label>
-              <img
-                src={editData.photo}
-                alt="Document"
-                className="max-w-full rounded border"
-              />
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-6 mb-6">
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Surgery Type
-              </label>
-              <select
-                className="w-full border rounded px-3 py-2"
-                value={editData.surgery_type}
-                onChange={(e) =>
-                  setEditData({ ...editData, surgery_type: e.target.value })
-                }
-              >
-                {surgeryTypes.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Status</label>
-              <select
-                className="w-full border rounded px-3 py-2"
-                value={editData.status}
-                onChange={(e) =>
-                  setEditData({ ...editData, status: e.target.value })
-                }
-              >
-                {statusOptions.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Urgency</label>
-              <select
-                className="w-full border rounded px-3 py-2"
-                value={editData.urgency}
-                onChange={(e) =>
-                  setEditData({ ...editData, urgency: e.target.value })
-                }
-              >
-                <option value="routine">Routine</option>
-                <option value="soon">Soon</option>
-                <option value="urgent">Urgent</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Surgeon</label>
-              <input
-                type="text"
-                className="w-full border rounded px-3 py-2"
-                value={editData.surgeon || ""}
-                onChange={(e) =>
-                  setEditData({ ...editData, surgeon: e.target.value })
-                }
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Scheduled Date
-              </label>
-              <input
-                type="date"
-                className="w-full border rounded px-3 py-2"
-                value={editData.scheduled_date || ""}
-                onChange={(e) =>
-                  setEditData({ ...editData, scheduled_date: e.target.value })
-                }
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Wait Time
-              </label>
-              <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded">
-                <Clock size={16} />
-                <span>{calculateWaitDays(editData.added_date)} days</span>
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full my-8 max-h-[90vh] overflow-y-auto">
+          <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-t-2xl">
+            <div className="flex justify-between items-start">
+              <div>
+                <h2 className="text-3xl font-bold mb-1">{editData.name}</h2>
+                <p className="text-blue-100 text-lg">ID: {editData.patient_id}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span
+                  className={`px-4 py-2 rounded-full text-sm font-bold shadow-lg ${
+                    urgencyLevels[editData.urgency].badge
+                  } text-white`}
+                >
+                  {urgencyLevels[editData.urgency].label}
+                </span>
+                <button
+                  onClick={onClose}
+                  className="hover:bg-white/20 p-2 rounded-lg transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
               </div>
             </div>
           </div>
 
-          <div className="border-t pt-4 mb-6">
-            <h3 className="font-medium mb-3">Pre-Op Checklist</h3>
-            <div className="space-y-3">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={editData.anesthesia_approval || false}
-                  onChange={(e) =>
-                    setEditData({
-                      ...editData,
-                      anesthesia_approval: e.target.checked,
-                    })
-                  }
-                  className="w-5 h-5"
-                />
-                <span>Anesthesia Approval</span>
+          <div className="p-6 space-y-6">
+            <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
+              <label className="block text-sm font-bold text-blue-900 mb-2">
+                Case Information
               </label>
+              <textarea
+                className="w-full border-2 border-blue-300 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none resize-none bg-white"
+                rows="4"
+                value={editData.case_information || ""}
+                onChange={(e) =>
+                  setEditData({ ...editData, case_information: e.target.value })
+                }
+              />
+            </div>
+
+            {editData.photo && (
+              <div className="bg-gray-50 rounded-xl p-4">
+                <label className="block text-sm font-bold text-gray-700 mb-3">
+                  Scanned Document
+                </label>
+                <img
+                  src={editData.photo}
+                  alt="Document"
+                  className="max-w-full rounded-lg border-2 border-gray-300 shadow-md"
+                />
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm mb-1">IOL Diopter</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Surgery Type
+                </label>
+                <select
+                  className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none bg-white"
+                  value={editData.surgery_type}
+                  onChange={(e) =>
+                    setEditData({ ...editData, surgery_type: e.target.value })
+                  }
+                >
+                  {surgeryTypes.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Status
+                </label>
+                <select
+                  className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none bg-white"
+                  value={editData.status}
+                  onChange={(e) =>
+                    setEditData({ ...editData, status: e.target.value })
+                  }
+                >
+                  {statusOptions.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Urgency
+                </label>
+                <select
+                  className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none bg-white"
+                  value={editData.urgency}
+                  onChange={(e) =>
+                    setEditData({ ...editData, urgency: e.target.value })
+                  }
+                >
+                  <option value="routine">Routine</option>
+                  <option value="soon">Soon</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Surgeon
+                </label>
                 <input
                   type="text"
-                  className="w-full border rounded px-3 py-2"
-                  value={editData.iol_diopter || ""}
+                  className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                  value={editData.surgeon || ""}
                   onChange={(e) =>
-                    setEditData({ ...editData, iol_diopter: e.target.value })
+                    setEditData({ ...editData, surgeon: e.target.value })
                   }
                 />
               </div>
               <div>
-                <label className="block text-sm mb-1">Equipment Needed</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Scheduled Date
+                </label>
                 <input
-                  type="text"
-                  className="w-full border rounded px-3 py-2"
-                  value={editData.equipment_needed || ""}
+                  type="date"
+                  className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                  value={editData.scheduled_date || ""}
                   onChange={(e) =>
-                    setEditData({
-                      ...editData,
-                      equipment_needed: e.target.value,
-                    })
+                    setEditData({ ...editData, scheduled_date: e.target.value })
                   }
                 />
               </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Wait Time
+                </label>
+                <div className="flex items-center gap-2 px-4 py-3 bg-gray-100 rounded-lg border-2 border-gray-200">
+                  <Clock className="w-5 h-5 text-gray-600" />
+                  <span className="font-bold text-gray-700">
+                    {calculateWaitDays(editData.added_date)} days
+                  </span>
+                </div>
+              </div>
             </div>
-          </div>
 
-          <div className="mb-6">
-            <label className="block text-sm font-medium mb-1">Notes</label>
-            <textarea
-              className="w-full border rounded px-3 py-2 h-24"
-              value={editData.notes || ""}
-              onChange={(e) =>
-                setEditData({ ...editData, notes: e.target.value })
-              }
-            />
-          </div>
+            <div className="border-t-2 border-gray-200 pt-6">
+              <h3 className="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+                Pre-Op Checklist
+              </h3>
+              <div className="space-y-4">
+                <label className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg border-2 border-gray-200 hover:bg-gray-100 transition-colors cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editData.anesthesia_approval || false}
+                    onChange={(e) =>
+                      setEditData({
+                        ...editData,
+                        anesthesia_approval: e.target.checked,
+                      })
+                    }
+                    className="w-6 h-6 rounded border-gray-300"
+                  />
+                  <span className="font-semibold text-gray-700">
+                    Anesthesia Approval
+                  </span>
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      IOL Diopter
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                      value={editData.iol_diopter || ""}
+                      onChange={(e) =>
+                        setEditData({ ...editData, iol_diopter: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Equipment Needed
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                      value={editData.equipment_needed || ""}
+                      onChange={(e) =>
+                        setEditData({
+                          ...editData,
+                          equipment_needed: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
 
-          <div className="mb-6">
-            <label className="block text-sm font-medium mb-1">
-              Update Photo
-            </label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoUpload}
-              className="w-full border rounded px-3 py-2"
-            />
-          </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Notes
+              </label>
+              <textarea
+                className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none resize-none"
+                rows="4"
+                placeholder="Additional notes..."
+                value={editData.notes || ""}
+                onChange={(e) =>
+                  setEditData({ ...editData, notes: e.target.value })
+                }
+              />
+            </div>
 
-          <div className="flex gap-2 justify-end">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 border rounded hover:bg-gray-100"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleUpdate}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              Save
-            </button>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Update Photo/Document
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoUpload}
+                className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 file:font-semibold"
+              />
+            </div>
+
+            <div className="flex gap-3 justify-end pt-4">
+              <button
+                onClick={onClose}
+                className="px-6 py-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdate}
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 font-semibold shadow-lg shadow-blue-500/30 transition-all"
+              >
+                Save Changes
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -692,56 +715,73 @@ export default function App() {
     return (
       <div className="space-y-6">
         {Object.keys(groupedByDate).length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            No surgeries scheduled
+          <div className="text-center py-20">
+            <CalendarDays className="w-20 h-20 text-gray-300 mx-auto mb-4" />
+            <p className="text-xl text-gray-500 font-medium">
+              No surgeries scheduled yet
+            </p>
           </div>
         ) : (
           Object.entries(groupedByDate).map(([date, pts]) => (
             <div
               key={date}
-              className="bg-white rounded-lg shadow-md border-2 border-gray-200 p-6"
+              className="bg-white rounded-2xl shadow-lg border-2 border-gray-200 overflow-hidden"
             >
-              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                <Calendar className="text-blue-600" />
-                {new Date(date).toLocaleDateString("en-US", {
-                  weekday: "long",
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </h3>
-              <div className="space-y-3">
+              <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-5">
+                <h3 className="text-xl font-bold flex items-center gap-3">
+                  <Calendar className="w-6 h-6" />
+                  {new Date(date).toLocaleDateString("en-US", {
+                    weekday: "long",
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })}
+                </h3>
+              </div>
+              <div className="p-5 space-y-3">
                 {pts.map((patient) => (
                   <div
                     key={patient.id}
                     onClick={() => setSelectedPatient(patient)}
-                    className={`border-l-4 p-4 cursor-pointer hover:bg-gray-50 border rounded ${
-                      urgencyLevels[patient.urgency].badge
+                    className={`border-l-4 p-5 cursor-pointer hover:shadow-lg transition-all rounded-lg border ${
+                      urgencyLevels[patient.urgency].color
                     }`}
                   >
-                    <div className="flex justify-between">
-                      <div>
-                        <h4 className="font-bold text-lg">{patient.name}</h4>
-                        <p className="text-sm text-gray-600">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <h4 className="font-bold text-xl text-gray-800">
+                            {patient.name}
+                          </h4>
+                          <span
+                            className={`w-3 h-3 rounded-full ${
+                              urgencyLevels[patient.urgency].dot
+                            }`}
+                          />
+                        </div>
+                        <p className="text-sm text-gray-600 mb-3">
                           ID: {patient.patient_id}
                         </p>
-                        <p className="text-sm mt-1">{patient.surgery_type}</p>
+                        <div className="flex flex-wrap gap-4 text-sm">
+                          <span className="flex items-center gap-2 text-gray-700">
+                            <Stethoscope className="w-4 h-4" />
+                            {patient.surgery_type}
+                          </span>
+                          {patient.surgeon && (
+                            <span className="flex items-center gap-2 text-gray-700">
+                              <User className="w-4 h-4" />
+                              {patient.surgeon}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <span
-                          className={`px-2 py-1 rounded text-xs font-medium ${
-                            urgencyLevels[patient.urgency].color
-                          }`}
-                        >
-                          {urgencyLevels[patient.urgency].label}
-                        </span>
-                        {patient.surgeon && (
-                          <p className="text-sm mt-2 flex items-center gap-1 justify-end">
-                            <User size={14} />
-                            {patient.surgeon}
-                          </p>
-                        )}
-                      </div>
+                      <span
+                        className={`px-4 py-2 rounded-full text-sm font-bold ${
+                          urgencyLevels[patient.urgency].badge
+                        } text-white shadow-md`}
+                      >
+                        {urgencyLevels[patient.urgency].label}
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -755,80 +795,89 @@ export default function App() {
 
   if (loading)
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-xl">Loading...</div>
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-blue-50 to-blue-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-xl font-semibold text-gray-700">Loading...</p>
+        </div>
       </div>
     );
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-4 md:p-6">
       <div className="max-w-7xl mx-auto">
-        <div className="bg-white rounded-lg shadow-md border-2 border-gray-200 p-6 mb-6">
-          <div className="flex items-center justify-between mb-6">
-            <h1 className="text-3xl font-bold flex items-center gap-2">
-              <Stethoscope className="text-blue-600" />
-              Surgical Waitlist Manager
-            </h1>
-            <div className="flex gap-2">
+        {/* Header */}
+        <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-6 md:p-8 mb-6">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold flex items-center gap-3 text-gray-800">
+                <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-3 rounded-xl">
+                  <Stethoscope className="text-white w-8 h-8" />
+                </div>
+                Surgical Waitlist Manager
+              </h1>
+              <p className="text-gray-600 mt-2 ml-1">
+                Manage and track surgical procedures
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
               <button
                 onClick={() => setCurrentView("waitlist")}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
+                className={`flex items-center gap-2 px-5 py-3 rounded-xl font-semibold transition-all shadow-md ${
                   currentView === "waitlist"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-200 hover:bg-gray-300"
+                    ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-blue-500/30"
+                    : "bg-white text-gray-700 hover:bg-gray-50 border-2 border-gray-300"
                 }`}
               >
-                <Filter size={20} />
+                <Filter className="w-5 h-5" />
                 Waitlist
               </button>
               <button
                 onClick={() => setCurrentView("schedule")}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
+                className={`flex items-center gap-2 px-5 py-3 rounded-xl font-semibold transition-all shadow-md ${
                   currentView === "schedule"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-200 hover:bg-gray-300"
+                    ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-blue-500/30"
+                    : "bg-white text-gray-700 hover:bg-gray-50 border-2 border-gray-300"
                 }`}
               >
-                <CalendarDays size={20} />
+                <CalendarDays className="w-5 h-5" />
                 Schedule
               </button>
               <button
                 onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-green-700 text-white px-5 py-3 rounded-xl hover:from-green-700 hover:to-green-800 font-semibold shadow-lg shadow-green-500/30 transition-all"
               >
-                <Plus size={20} />
+                <Plus className="w-5 h-5" />
                 Add Patient
               </button>
             </div>
           </div>
 
+          {/* Filters */}
           {currentView === "waitlist" && (
             <div className="flex flex-col md:flex-row gap-4">
               <div className="flex-1 relative">
-                <Search
-                  className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-                  size={20}
-                />
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <input
                   type="text"
-                  placeholder="Search..."
-                  className="w-full pl-10 pr-4 py-2 border-2 rounded-lg"
+                  placeholder="Search by name or ID..."
+                  className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
               <select
-                className="px-4 py-2 border-2 rounded-lg"
+                className="px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none bg-white font-medium"
                 value={filterUrgency}
                 onChange={(e) => setFilterUrgency(e.target.value)}
               >
-                <option value="all">All Urgency</option>
-                <option value="urgent">Urgent</option>
-                <option value="soon">Soon</option>
-                <option value="routine">Routine</option>
+                <option value="all">All Urgency Levels</option>
+                <option value="urgent">🔴 Urgent</option>
+                <option value="soon">🟡 Soon</option>
+                <option value="routine">🟢 Routine</option>
               </select>
               <select
-                className="px-4 py-2 border-2 rounded-lg"
+                className="px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none bg-white font-medium"
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
               >
@@ -843,69 +892,81 @@ export default function App() {
           )}
         </div>
 
+        {/* Main Content */}
         {currentView === "waitlist" ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredPatients.map((patient) => (
               <div
                 key={patient.id}
                 onClick={() => setSelectedPatient(patient)}
-                className={`rounded-lg border-4 p-4 cursor-pointer hover:shadow-xl transition-all ${
+                className={`rounded-2xl border-2 p-6 cursor-pointer hover:shadow-2xl transition-all transform hover:-translate-y-1 ${
                   urgencyLevels[patient.urgency].color
                 }`}
-                style={{ minHeight: "200px" }}
               >
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <h3 className="font-bold text-lg">{patient.name}</h3>
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex-1">
+                    <h3 className="font-bold text-xl text-gray-800 mb-1">
+                      {patient.name}
+                    </h3>
                     <p className="text-sm text-gray-600">
                       ID: {patient.patient_id}
                     </p>
                   </div>
                   <span
                     className={`w-4 h-4 rounded-full ${
-                      urgencyLevels[patient.urgency].badge
-                    }`}
+                      urgencyLevels[patient.urgency].dot
+                    } shadow-lg`}
                   />
                 </div>
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Calendar size={16} />
+                
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center gap-2 text-gray-700">
+                    <Stethoscope className="w-4 h-4 flex-shrink-0" />
                     <span className="font-medium">{patient.surgery_type}</span>
                   </div>
+                  
                   {patient.surgeon && (
-                    <div className="flex items-center gap-2">
-                      <User size={16} />
+                    <div className="flex items-center gap-2 text-gray-700">
+                      <User className="w-4 h-4 flex-shrink-0" />
                       <span>{patient.surgeon}</span>
                     </div>
                   )}
-                  <div className="flex items-center gap-2">
-                    <Clock size={16} />
+                  
+                  <div className="flex items-center gap-2 text-gray-700">
+                    <Clock className="w-4 h-4 flex-shrink-0" />
                     <span>
-                      Waiting {calculateWaitDays(patient.added_date)} days
+                      Waiting <strong>{calculateWaitDays(patient.added_date)}</strong> days
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  
+                  <div className="flex items-center gap-2 text-gray-700">
                     {patient.status === "Completed" ? (
-                      <CheckCircle size={16} className="text-green-600" />
+                      <CheckCircle className="w-4 h-4 flex-shrink-0 text-green-600" />
                     ) : (
-                      <AlertCircle size={16} className="text-orange-600" />
+                      <AlertCircle className="w-4 h-4 flex-shrink-0 text-orange-600" />
                     )}
-                    <span className="font-medium">{patient.status}</span>
+                    <span className="font-semibold">{patient.status}</span>
                   </div>
                 </div>
+                
                 {patient.scheduled_date && (
-                  <div className="mt-3 pt-3 border-t-2 border-gray-300">
-                    <p className="text-sm font-bold">
-                      Scheduled:{" "}
-                      {new Date(patient.scheduled_date).toLocaleDateString()}
-                    </p>
+                  <div className="mt-4 pt-4 border-t-2 border-gray-300">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Calendar className="w-4 h-4 text-blue-600" />
+                      <span className="font-bold text-gray-800">
+                        {new Date(patient.scheduled_date).toLocaleDateString()}
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>
             ))}
             {filteredPatients.length === 0 && (
-              <div className="col-span-full text-center py-12 text-gray-500">
-                No patients found
+              <div className="col-span-full text-center py-20">
+                <AlertCircle className="w-20 h-20 text-gray-300 mx-auto mb-4" />
+                <p className="text-xl text-gray-500 font-medium">
+                  No patients found
+                </p>
               </div>
             )}
           </div>
