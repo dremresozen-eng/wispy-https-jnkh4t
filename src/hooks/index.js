@@ -1,161 +1,91 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, SESSION_TIMEOUT } from "../constants";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, SESSION_TIMEOUT } from "./constants";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Hook for managing patients data
-export const usePatients = (currentUser) => {
+// 🔹 Hasta verilerini yükleme
+export function usePatients(currentUser) {
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const loadPatients = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("patients")
-        .select("*")
-        .order("added_date", { ascending: false });
-
-      if (error) throw error;
-      setPatients(data || []);
-    } catch (error) {
-      console.error("Error loading patients:", error);
-    }
+    if (!currentUser) return;
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("patients")
+      .select("*")
+      .order("created_at", { ascending: true });
+    if (!error) setPatients(data || []);
     setLoading(false);
   };
 
   useEffect(() => {
-    if (currentUser) {
-      loadPatients();
-
-      const channel = supabase
-        .channel("patients-changes")
-        .on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: "patients" },
-          () => {
-            loadPatients();
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
+    if (currentUser) loadPatients();
   }, [currentUser]);
 
   return { patients, loading, loadPatients };
-};
+}
 
-// Hook for managing audit logs
-export const useAuditLogs = (currentUser) => {
+// 🔹 Audit Log yönetimi
+export function useAuditLogs(currentUser) {
   const [auditLogs, setAuditLogs] = useState([]);
 
-  const loadAuditLogs = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("audit_logs")
-        .select("*")
-        .order("timestamp", { ascending: false })
-        .limit(100);
-
-      if (data && !error) {
-        setAuditLogs(data);
-      } else {
-        const localLogs = JSON.parse(localStorage.getItem("auditLogs") || "[]");
-        setAuditLogs(localLogs.slice(0, 100));
-      }
-    } catch (error) {
-      const localLogs = JSON.parse(localStorage.getItem("auditLogs") || "[]");
-      setAuditLogs(localLogs.slice(0, 100));
-    }
-  };
-
-  const createAuditLog = async (action, patientId, patientName, details, oldValue = null, newValue = null) => {
+  const createAuditLog = async (action, patient_id, patient_name, details) => {
     if (!currentUser) return;
-
-    try {
-      const logEntry = {
-        action,
-        patient_id: patientId,
-        patient_name: patientName,
+    await supabase.from("audit_logs").insert([
+      {
         user_name: currentUser.name,
         user_role: currentUser.role,
+        action,
+        patient_id,
+        patient_name,
         details,
-        old_value: oldValue,
-        new_value: newValue,
-        timestamp: new Date().toISOString(),
-      };
+      },
+    ]);
+    loadAuditLogs();
+  };
 
-      await supabase.from("audit_logs").insert([logEntry]).catch(() => {
-        console.log("Audit table not created yet - storing locally");
-      });
-
-      const existingLogs = JSON.parse(localStorage.getItem("auditLogs") || "[]");
-      existingLogs.unshift(logEntry);
-      if (existingLogs.length > 1000) existingLogs.pop();
-      localStorage.setItem("auditLogs", JSON.stringify(existingLogs));
-
-      loadAuditLogs();
-    } catch (error) {
-      console.error("Error creating audit log:", error);
-    }
+  const loadAuditLogs = async () => {
+    const { data, error } = await supabase
+      .from("audit_logs")
+      .select("*")
+      .order("timestamp", { ascending: false })
+      .limit(100);
+    if (!error) setAuditLogs(data || []);
   };
 
   useEffect(() => {
-    if (currentUser) {
-      loadAuditLogs();
-    }
-  }, [currentUser]);
+    loadAuditLogs();
+  }, []);
 
-  return { auditLogs, createAuditLog, loadAuditLogs };
-};
+  return { auditLogs, createAuditLog };
+}
 
-// Hook for session management
-export const useSession = (currentUser, onLogout) => {
-  const [lastActivity, setLastActivity] = useState(Date.now());
-
+// 🔹 Oturum kontrolü (otomatik logout)
+export function useSession(currentUser, onTimeout) {
   useEffect(() => {
-    const checkInactivity = () => {
-      const now = Date.now();
-      if (currentUser && now - lastActivity > SESSION_TIMEOUT) {
-        alert("Session expired due to inactivity. Please login again.");
-        onLogout();
-      }
-    };
+    if (!currentUser) return;
+    const timer = setTimeout(() => {
+      onTimeout?.();
+    }, SESSION_TIMEOUT);
+    return () => clearTimeout(timer);
+  }, [currentUser]);
+}
 
-    const interval = setInterval(checkInactivity, 60000);
-    
-    const updateActivity = () => setLastActivity(Date.now());
-    window.addEventListener('mousemove', updateActivity);
-    window.addEventListener('keypress', updateActivity);
-    window.addEventListener('click', updateActivity);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('mousemove', updateActivity);
-      window.removeEventListener('keypress', updateActivity);
-      window.removeEventListener('click', updateActivity);
-    };
-  }, [currentUser, lastActivity, onLogout]);
-
-  return { lastActivity };
-};
-
-// Hook for pagination
-export const usePagination = (items, itemsPerPage) => {
+// 🔹 Sayfalama hook’u
+export function usePagination(items, perPage) {
   const [currentPage, setCurrentPage] = useState(1);
 
-  const totalPages = Math.ceil(items.length / itemsPerPage);
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = items.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(items.length / perPage);
+  const currentItems = items.slice(
+    (currentPage - 1) * perPage,
+    currentPage * perPage
+  );
 
   const goToPage = (page) => {
-    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+    if (page >= 1 && page <= totalPages) setCurrentPage(page);
   };
-
   const nextPage = () => goToPage(currentPage + 1);
   const prevPage = () => goToPage(currentPage - 1);
   const resetPage = () => setCurrentPage(1);
@@ -169,7 +99,5 @@ export const usePagination = (items, itemsPerPage) => {
     prevPage,
     resetPage,
   };
-};
+}
 
-// Export supabase client
-export { supabase };
