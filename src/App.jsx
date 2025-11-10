@@ -57,9 +57,10 @@ import {
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export default function App() {
-  // USE HOOK INSTEAD:
-  const { patients, loading, loadPatients } = usePatients(currentUser);
-  const { auditLogs, createAuditLog } = useAuditLogs(currentUser);
+  const [currentUser, setCurrentUser] = useState(null);
+  const { patients, loading, loadPatients } = usePatients(currentUser || {});
+  const { auditLogs, createAuditLog } = useAuditLogs(currentUser || {});
+
   
   // Keep all your other state:
   const [searchTerm, setSearchTerm] = useState("");
@@ -93,7 +94,7 @@ export default function App() {
     });
   };
 
-  const [currentUser, setCurrentUser] = useState(null);
+
 
 
   const filteredPatients = sortPatients(
@@ -1388,7 +1389,7 @@ const handlePrint = () => {
                 <select
                   className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none bg-white font-medium"
                   value={filterSurgeryType}
-                  onChange={(e) => setfilterSurgeryType(e.target.value)}
+                  onChange={(e) => setFilterSurgeryType(e.target.value)}
                 >
                   <option value="all">All Surgery Types</option>
                   {SURGERY_TYPES.map((type) => (
