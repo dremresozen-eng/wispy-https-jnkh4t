@@ -66,6 +66,8 @@ export default function App() {
   
   // Keep all your other state:
   const [searchTerm, setSearchTerm] = useState("");
+  const [currentView, setCurrentView] = useState("waitlist");
+
   // ...
   
 
