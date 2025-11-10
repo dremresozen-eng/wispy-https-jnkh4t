@@ -57,19 +57,45 @@ import {
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export default function App() {
+  // 🔹 USER STATE
   const [currentUser, setCurrentUser] = useState(null);
 
+  // 🔹 FILTERS & SEARCH
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterUrgency, setFilterUrgency] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterSurgeon, setFilterSurgeon] = useState("all");
+  const [filterSurgeryType, setfilterSurgeryType] = useState("all");
+
+  // 🔹 VIEW CONTROL
+  const [currentView, setCurrentView] = useState("waitlist");
+  const [selectedPatients, setSelectedPatients] = useState([]);
+
+  // 🔹 MODALS & UI STATES
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [showBulkSchedule, setShowBulkSchedule] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showAuditLog, setShowAuditLog] = useState(false);
+  const [showStats, setShowStats] = useState(true);
+
+  // 🔹 DATA & HOOKS
   const { patients, loading, loadPatients } = usePatients(currentUser);
   const { auditLogs, createAuditLog } = useAuditLogs(currentUser);
 
+  // 🔹 SESSION MANAGEMENT
+  useSession(currentUser, handleLogout);
 
-  
-  // Keep all your other state:
-  const [searchTerm, setSearchTerm] = useState("");
-  const [currentView, setCurrentView] = useState("waitlist");
+  // 🔹 EFFECTS
+  useEffect(() => {
+    const savedUser = localStorage.getItem("surgicalWaitlistUser");
+    if (savedUser) {
+      setCurrentUser(JSON.parse(savedUser));
+    } else {
+      setShowLoginModal(true);
+    }
+  }, []);
 
-  // ...
-  
 
   // Check for logged in user
   useEffect(() => {
@@ -97,12 +123,6 @@ export default function App() {
       return calculateWaitDays(b.added_date) - calculateWaitDays(a.added_date);
     });
   };
-
-
-const [filterUrgency, setFilterUrgency] = useState("all");
-const [filterStatus, setFilterStatus] = useState("all");
-const [filterSurgeon, setFilterSurgeon] = useState("all");
-const [filterSurgeryType, setfilterSurgeryType] = useState("all");
 
 
   const filteredPatients = sortPatients(
