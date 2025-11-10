@@ -93,6 +93,9 @@ export default function App() {
     });
   };
 
+  const [currentUser, setCurrentUser] = useState(null);
+
+
   const filteredPatients = sortPatients(
     filterPatientsUtil(patients, {
       searchTerm,
@@ -448,7 +451,7 @@ const handlePrint = () => {
     return (
       <div className="flex items-center justify-center gap-2 mt-6 mb-4">
         <button
-          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+          onClick={prevPage}
           disabled={currentPage === 1}
           className={`p-2 rounded-lg border-2 ${
             currentPage === 1
@@ -471,7 +474,7 @@ const handlePrint = () => {
               return (
                 <button
                   key={pageNumber}
-                  onClick={() => setCurrentPage(pageNumber)}
+                  onClick={() => goToPage(pageNumber)}
                   className={`w-10 h-10 rounded-lg border-2 font-semibold ${
                     currentPage === pageNumber
                       ? 'bg-blue-600 text-white border-blue-600'
@@ -492,7 +495,7 @@ const handlePrint = () => {
         </div>
 
         <button
-          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+          onClick={nextPage}
           disabled={currentPage === totalPages}
           className={`p-2 rounded-lg border-2 ${
             currentPage === totalPages
@@ -515,7 +518,7 @@ const handlePrint = () => {
     const [formData, setFormData] = useState({
       name: "",
       patient_id: "",
-      surgery_type: SURGERY_TYPESs[0],
+      surgery_type: SURGERY_TYPES[0],
       urgency: "routine",
       status: "Waiting",
       surgeon: "",
@@ -674,7 +677,7 @@ const handlePrint = () => {
                     setFormData({ ...formData, surgery_type: e.target.value })
                   }
                 >
-                  {SURGERY_TYPESs.map((type) => (
+                  {SURGERY_TYPES.map((type) => (
                     <option key={type} value={type}>
                       {type}
                     </option>
@@ -769,19 +772,21 @@ const handlePrint = () => {
             </div>
 
             <div className="flex gap-3 justify-end pt-4">
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="px-6 py-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 font-semibold transition-colors"
-              >
-                Cancel
-              <button
-                onClick={() => setShowAuditLog(true)}
-                className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white px-5 py-3 rounded-xl hover:from-purple-700 hover:to-purple-800 font-semibold shadow-lg shadow-purple-500/30 transition-all"
-              >
-                <History className="w-5 h-5" />
-                Activity Log
-              </button>
-              </button>
+             <div className="flex gap-3">
+  <button
+    onClick={() => setShowAddModal(false)}
+    className="px-6 py-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 font-semibold transition-colors"
+  >
+    Cancel
+  </button>
+  <button
+    onClick={() => setShowAuditLog(true)}
+    className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white px-5 py-3 rounded-xl hover:from-purple-700 hover:to-purple-800 font-semibold shadow-lg shadow-purple-500/30 transition-all"
+  >
+    Activity Log
+  </button>
+</div>
+
               <button
                 onClick={handleSubmit}
                 className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 font-semibold shadow-lg shadow-blue-500/30 transition-all"
@@ -953,7 +958,7 @@ const handlePrint = () => {
                     setEditData({ ...editData, surgery_type: e.target.value })
                   }
                 >
-                  {SURGERY_TYPESs.map((type) => (
+                  {SURGERY_TYPES.map((type) => (
                     <option key={type} value={type}>
                       {type}
                     </option>
@@ -1382,11 +1387,11 @@ const handlePrint = () => {
                 </select>
                 <select
                   className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none bg-white font-medium"
-                  value={filterSURGERY_TYPES}
-                  onChange={(e) => setFilterSURGERY_TYPES(e.target.value)}
+                  value={filterSurgeryType}
+                  onChange={(e) => setfilterSurgeryType(e.target.value)}
                 >
                   <option value="all">All Surgery Types</option>
-                  {SURGERY_TYPESs.map((type) => (
+                  {SURGERY_TYPES.map((type) => (
                     <option key={type} value={type}>
                       {type}
                     </option>
