@@ -97,6 +97,10 @@ export default function App() {
   };
 
 
+const [filterUrgency, setFilterUrgency] = useState("all");
+const [filterStatus, setFilterStatus] = useState("all");
+const [filterSurgeon, setFilterSurgeon] = useState("all");
+const [filterSurgeryType, setfilterSurgeryType] = useState("all");
 
 
   const filteredPatients = sortPatients(
