@@ -26,106 +26,48 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  History, 
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
+// ===== ADD THESE NEW IMPORTS =====
+import { usePatients, useAuditLogs, useSession, usePagination } from './hooks';
+import { 
+  calculateWaitDays, 
+  calculateStats, 
+  exportPatientsToCSV,
+  filterPatients as filterPatientsUtil,
+  sortPatients,
+  getUniqueSurgeons,
+  formatDate
+} from './utils';
+import { 
+  SURGERY_TYPES, 
+  STATUS_OPTIONS, 
+  URGENCY_LEVELS,
+  STATUS_COLORS,
+  PATIENTS_PER_PAGE,
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY,
+  AUTHORIZED_USERS,
+  SESSION_TIMEOUT
+} from './constants';
+// ===== END NEW IMPORTS =====
 
-const SUPABASE_URL = "https://zzifgbkljofyzlxbzypk.supabase.co";
-const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp6aWZnYmtsam9meXpseGJ6eXBrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI2MjQyODMsImV4cCI6MjA3ODIwMDI4M30.8aIx6Ta_ErN2YgiZlr9CJiyb1HIvE-waRuksr42k1Rg";
-
+// Now imported from constants!
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// AUTHORIZED USERS DATABASE
-const AUTHORIZED_USERS = [
-  { name: "Özlem Şahin", password: "0000", role: "admin" },
-  { name: "Mehmet Orkun Sevik", password: "0001", role: "surgeon" },
-  { name: "Aslan Aykut", password: "0002", role: "surgeon" },
-  { name: "Emre Sözen", password: "0004", role: "surgeon" },
-  { name: "Tuğçe Kılıçarslan", password: "0005", role: "surgeon" },
-  { name: "Yiğitalp Akpınar", password: "0006", role: "surgeon" },
-];
-
 export default function App() {
-  const [patients, setPatients] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // USE HOOK INSTEAD:
+  const { patients, loading, loadPatients } = usePatients(currentUser);
+  const { auditLogs, createAuditLog } = useAuditLogs(currentUser);
+  
+  // Keep all your other state:
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterUrgency, setFilterUrgency] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [filterSurgeon, setFilterSurgeon] = useState("all");
-  const [filterSurgeryType, setFilterSurgeryType] = useState("all");
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [selectedPatient, setSelectedPatient] = useState(null);
-  const [currentView, setCurrentView] = useState("waitlist");
-  const [showStats, setShowStats] = useState(true);
-  const [currentUser, setCurrentUser] = useState(null);
-  const [showLoginModal, setShowLoginModal] = useState(false);
-  const [selectedPatients, setSelectedPatients] = useState([]);
-  const [showBulkSchedule, setShowBulkSchedule] = useState(false);
+  // ...
   
   // PAGINATION STATE
   const [currentPage, setCurrentPage] = useState(1);
   const [patientsPerPage] = useState(12); // Show 12 patients per page (4x3 grid)
-
-  const surgeryTypes = [
-    "Phacoemulsification",
-    "Pars Plana Vitrectomy",
-    "Ahmed Glaucoma Valve",
-    "Silicone Oil Removal",
-    "Silicone Oil Injection",
-    "Secondary IOL Implantation",
-  ];
-
-  const urgencyLevels = {
-    urgent: {
-      label: "Urgent",
-      badge: "bg-gradient-to-r from-red-500 to-red-600",
-      dot: "bg-red-500",
-      borderColor: "#ef4444",
-    },
-    soon: {
-      label: "Soon",
-      badge: "bg-gradient-to-r from-amber-500 to-amber-600",
-      dot: "bg-amber-500",
-      borderColor: "#f59e0b",
-    },
-    routine: {
-      label: "Routine",
-      badge: "bg-gradient-to-r from-emerald-500 to-emerald-600",
-      dot: "bg-emerald-500",
-      borderColor: "#10b981",
-    },
-  };
-
-  const statusColors = {
-    "Waiting": {
-      color: "bg-gray-50 border-gray-300",
-      textColor: "text-gray-800",
-    },
-    "Pre-op Prep": {
-      color: "bg-yellow-50 border-yellow-300",
-      textColor: "text-yellow-800",
-    },
-    "Ready": {
-      color: "bg-orange-50 border-orange-300",
-      textColor: "text-orange-800",
-    },
-    "Scheduled": {
-      color: "bg-red-50 border-red-300",
-      textColor: "text-red-800",
-    },
-    "Completed": {
-      color: "bg-green-50 border-green-300",
-      textColor: "text-green-800",
-    },
-  };
-
-  const statusOptions = [
-    "Waiting",
-    "Pre-op Prep",
-    "Ready",
-    "Scheduled",
-    "Completed",
-  ];
 
   // Check for logged in user
   useEffect(() => {
@@ -136,42 +78,6 @@ export default function App() {
       setShowLoginModal(true);
     }
   }, []);
-
-  useEffect(() => {
-    if (currentUser) {
-      loadPatients();
-
-      const channel = supabase
-        .channel("patients-changes")
-        .on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: "patients" },
-          () => {
-            loadPatients();
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
-  }, [currentUser]);
-
-  const loadPatients = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("patients")
-        .select("*")
-        .order("added_date", { ascending: false });
-
-      if (error) throw error;
-      setPatients(data || []);
-    } catch (error) {
-      console.error("Error loading patients:", error);
-    }
-    setLoading(false);
-  };
 
   const calculateWaitDays = (addedDate) => {
     const now = new Date();
@@ -191,31 +97,30 @@ export default function App() {
   };
 
   const filteredPatients = sortPatients(
-    patients.filter((patient) => {
-      const matchesSearch =
-        patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        patient.patient_id.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesUrgency =
-        filterUrgency === "all" || patient.urgency === filterUrgency;
-      const matchesStatus =
-        filterStatus === "all" || patient.status === filterStatus;
-      const matchesSurgeon =
-        filterSurgeon === "all" || patient.surgeon === filterSurgeon;
-      const matchesSurgeryType =
-        filterSurgeryType === "all" || patient.surgery_type === filterSurgeryType;
-      return matchesSearch && matchesUrgency && matchesStatus && matchesSurgeon && matchesSurgeryType;
-    })
+    filterPatientsUtil(patients, {
+      searchTerm,
+      urgency: filterUrgency,
+      status: filterStatus,
+      surgeon: filterSurgeon,
+      surgeryType: filterSurgeryType
+    }),
+    calculateWaitDays
   );
 
-  // PAGINATION LOGIC
-  const indexOfLastPatient = currentPage * patientsPerPage;
-  const indexOfFirstPatient = indexOfLastPatient - patientsPerPage;
-  const currentPatients = filteredPatients.slice(indexOfFirstPatient, indexOfLastPatient);
-  const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
-
-  // Reset to page 1 when filters change
+  // Use pagination hook:
+  const {
+    currentPage,
+    totalPages,
+    currentItems: currentPatients,
+    goToPage,
+    nextPage,
+    prevPage,
+    resetPage
+  } = usePagination(filteredPatients, PATIENTS_PER_PAGE);
+  
+  // Reset page when filters change:
   useEffect(() => {
-    setCurrentPage(1);
+    resetPage();
   }, [searchTerm, filterUrgency, filterStatus, filterSurgeon, filterSurgeryType]);
 
   const scheduledPatients = patients
@@ -223,20 +128,12 @@ export default function App() {
     .sort((a, b) => new Date(a.scheduled_date) - new Date(b.scheduled_date));
 
   // Get unique surgeons for filter
-  const uniqueSurgeons = [...new Set(patients.map(p => p.surgeon).filter(Boolean))];
+  const uniqueSurgeons = getUniqueSurgeons(patients);
+
+  const [showAuditLog, setShowAuditLog] = useState(false);
 
   // Statistics calculations
-  const stats = {
-    total: patients.length,
-    waiting: patients.filter(p => p.status === "Waiting").length,
-    urgent: patients.filter(p => p.urgency === "urgent" && p.status !== "Completed").length,
-    scheduled: patients.filter(p => p.status === "Scheduled").length,
-    completed: patients.filter(p => p.status === "Completed").length,
-    avgWaitTime: patients.length > 0 
-      ? Math.round(patients.reduce((sum, p) => sum + calculateWaitDays(p.added_date), 0) / patients.length)
-      : 0,
-    longWait: patients.filter(p => calculateWaitDays(p.added_date) > 30 && p.status !== "Completed").length,
-  };
+  const stats = calculateStats(patients, calculateWaitDays);
 
   // SECURE LOGIN MODAL
   const LoginModal = () => {
@@ -269,6 +166,7 @@ export default function App() {
         setCurrentUser(userData);
         setShowLoginModal(false);
         setError("");
+        createAuditLog("LOGIN", null, null, `${user.name} logged in successfully`);
       } else {
         setError("Invalid password! Please try again.");
         setPassword("");
@@ -352,15 +250,20 @@ export default function App() {
 
   const handleLogout = () => {
     if (window.confirm("Are you sure you want to logout?")) {
+      createAuditLog("LOGOUT", null, null, `${currentUser.name} logged out`);
       localStorage.removeItem("surgicalWaitlistUser");
       setCurrentUser(null);
       setShowLoginModal(true);
     }
   };
-
+   
+// ADD SESSION MANAGEMENT:
+  useSession(currentUser, handleLogout);
+   
   // Delete patient function
   const handleDeletePatient = async (patientId) => {
-    if (!window.confirm("Are you sure you want to delete this patient? This action cannot be undone.")) {
+    const patient = patients.find(p => p.id === patientId);
+    if (!window.confirm("Are you sure you want to delete this patient?")) {
       return;
     }
 
@@ -371,6 +274,15 @@ export default function App() {
         .eq("id", patientId);
 
       if (error) throw error;
+      
+      // ADD THIS:
+      await createAuditLog(
+        "DELETE",
+        patientId,
+        patient.name,
+        `Patient deleted by ${currentUser.name}`
+      );
+      
       setSelectedPatient(null);
       loadPatients();
       alert("Patient deleted successfully");
@@ -379,7 +291,7 @@ export default function App() {
       alert("Error deleting patient");
     }
   };
-
+   
   // Quick status update
   const quickStatusUpdate = async (patient, newStatus) => {
     try {
@@ -397,33 +309,17 @@ export default function App() {
   };
 
   // Export to CSV
-  const exportToCSV = () => {
-    const headers = ["Name", "Patient ID", "Surgery Type", "Urgency", "Status", "Surgeon", "Wait Days", "Scheduled Date"];
-    const rows = filteredPatients.map(p => [
-      p.name,
-      p.patient_id,
-      p.surgery_type,
-      p.urgency,
-      p.status,
-      p.surgeon || "",
-      calculateWaitDays(p.added_date),
-      p.scheduled_date || ""
-    ]);
-
-    const csv = [headers, ...rows].map(row => row.join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `waitlist_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+ const exportToCSV = () => {
+    exportPatientsToCSV(filteredPatients, calculateWaitDays);
+    createAuditLog("EXPORT", null, null, `${currentUser.name} exported patient list to CSV`);
   };
 
   // Print function
-  const handlePrint = () => {
+const handlePrint = () => {
     window.print();
+    createAuditLog("PRINT", null, null, `${currentUser.name} printed patient list`);
   };
-
+   
   // Bulk schedule
   const BulkScheduleModal = () => {
     const [bulkDate, setBulkDate] = useState("");
@@ -622,7 +518,7 @@ export default function App() {
     const [formData, setFormData] = useState({
       name: "",
       patient_id: "",
-      surgery_type: surgeryTypes[0],
+      surgery_type: SURGERY_TYPESs[0],
       urgency: "routine",
       status: "Waiting",
       surgeon: "",
@@ -679,6 +575,14 @@ export default function App() {
         ]);
 
         if (error) throw error;
+        await createAuditLog(
+          "ADD",
+          formData.patient_id,
+          formData.name,
+          `Patient added by ${currentUser.name}`,
+          null,
+          `Status: ${formData.status}, Urgency: ${formData.urgency}`
+        );
         setShowAddModal(false);
         loadPatients();
       } catch (error) {
@@ -773,7 +677,7 @@ export default function App() {
                     setFormData({ ...formData, surgery_type: e.target.value })
                   }
                 >
-                  {surgeryTypes.map((type) => (
+                  {SURGERY_TYPESs.map((type) => (
                     <option key={type} value={type}>
                       {type}
                     </option>
@@ -873,6 +777,13 @@ export default function App() {
                 className="px-6 py-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 font-semibold transition-colors"
               >
                 Cancel
+              <button
+                onClick={() => setShowAuditLog(true)}
+                className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white px-5 py-3 rounded-xl hover:from-purple-700 hover:to-purple-800 font-semibold shadow-lg shadow-purple-500/30 transition-all"
+              >
+                <History className="w-5 h-5" />
+                Activity Log
+              </button>
               </button>
               <button
                 onClick={handleSubmit}
@@ -913,6 +824,14 @@ export default function App() {
           .eq("id", patient.id);
 
         if (error) throw error;
+        await createAuditLog(
+          "EDIT",
+          patient.id,
+          editData.name,
+          `Patient updated by ${currentUser.name}`,
+          `Old: ${patient.status}`,
+          `New: ${editData.status}`
+        );
         onClose();
         loadPatients();
       } catch (error) {
@@ -944,10 +863,10 @@ export default function App() {
               <div className="flex items-center gap-3">
                 <span
                   className={`px-4 py-2 rounded-full text-sm font-bold shadow-lg ${
-                    urgencyLevels[editData.urgency].badge
+                    URGENCY_LEVELS[editData.urgency].badge
                   } text-white`}
                 >
-                  {urgencyLevels[editData.urgency].label}
+                  {URGENCY_LEVELS[editData.urgency].label}
                 </span>
                 
                 {/* Quick Actions Dropdown */}
@@ -960,7 +879,7 @@ export default function App() {
                   </button>
                   {showQuickActions && (
                     <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border-2 border-gray-200 overflow-hidden z-10">
-                      {statusOptions.map(status => (
+                      {STATUS_OPTIONS.map(status => (
                         <button
                           key={status}
                           onClick={() => {
@@ -1037,7 +956,7 @@ export default function App() {
                     setEditData({ ...editData, surgery_type: e.target.value })
                   }
                 >
-                  {surgeryTypes.map((type) => (
+                  {SURGERY_TYPESs.map((type) => (
                     <option key={type} value={type}>
                       {type}
                     </option>
@@ -1055,7 +974,7 @@ export default function App() {
                     setEditData({ ...editData, status: e.target.value })
                   }
                 >
-                  {statusOptions.map((status) => (
+                  {STATUS_OPTIONS.map((status) => (
                     <option key={status} value={status}>
                       {status}
                     </option>
@@ -1270,9 +1189,9 @@ export default function App() {
                     key={patient.id}
                     onClick={() => setSelectedPatient(patient)}
                     className={`border-l-4 p-5 cursor-pointer hover:shadow-lg transition-all rounded-lg ${
-                      statusColors[patient.status].color
+                      STATUS_COLORS[patient.status].color
                     }`}
-                    style={{ borderLeftColor: urgencyLevels[patient.urgency].borderColor }}
+                    style={{ borderLeftColor: URGENCY_LEVELS[patient.urgency].borderColor }}
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
@@ -1282,9 +1201,9 @@ export default function App() {
                           </h4>
                           <span
                             className={`w-3 h-3 rounded-full ${
-                              urgencyLevels[patient.urgency].dot
+                              URGENCY_LEVELS[patient.urgency].dot
                             }`}
-                            title={urgencyLevels[patient.urgency].label}
+                            title={URGENCY_LEVELS[patient.urgency].label}
                           />
                         </div>
                         <p className="text-sm text-gray-600 mb-3">
@@ -1305,10 +1224,10 @@ export default function App() {
                       </div>
                       <span
                         className={`px-4 py-2 rounded-full text-sm font-bold ${
-                          urgencyLevels[patient.urgency].badge
+                          URGENCY_LEVELS[patient.urgency].badge
                         } text-white shadow-md`}
                       >
-                        {urgencyLevels[patient.urgency].label}
+                        {URGENCY_LEVELS[patient.urgency].label}
                       </span>
                     </div>
                   </div>
@@ -1444,7 +1363,7 @@ export default function App() {
                   onChange={(e) => setFilterStatus(e.target.value)}
                 >
                   <option value="all">All Statuses</option>
-                  {statusOptions.map((s) => (
+                  {STATUS_OPTIONS.map((s) => (
                     <option key={s} value={s}>
                       {s}
                     </option>
@@ -1466,11 +1385,11 @@ export default function App() {
                 </select>
                 <select
                   className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none bg-white font-medium"
-                  value={filterSurgeryType}
-                  onChange={(e) => setFilterSurgeryType(e.target.value)}
+                  value={filterSURGERY_TYPES}
+                  onChange={(e) => setFilterSURGERY_TYPES(e.target.value)}
                 >
                   <option value="all">All Surgery Types</option>
-                  {surgeryTypes.map((type) => (
+                  {SURGERY_TYPESs.map((type) => (
                     <option key={type} value={type}>
                       {type}
                     </option>
@@ -1492,7 +1411,7 @@ export default function App() {
                 <div
                   key={patient.id}
                   className={`rounded-2xl border-2 p-6 cursor-pointer hover:shadow-2xl transition-all transform hover:-translate-y-1 ${
-                    statusColors[patient.status].color
+                    STATUS_COLORS[patient.status].color
                   } ${selectedPatients.includes(patient.id) ? 'ring-4 ring-blue-500' : ''}`}
                 >
                   {/* Selection checkbox */}
@@ -1512,9 +1431,9 @@ export default function App() {
                     />
                     <span
                       className={`w-4 h-4 rounded-full ${
-                        urgencyLevels[patient.urgency].dot
+                        URGENCY_LEVELS[patient.urgency].dot
                       } shadow-lg`}
-                      title={urgencyLevels[patient.urgency].label}
+                      title={URGENCY_LEVELS[patient.urgency].label}
                     />
                   </div>
 
@@ -1603,4 +1522,83 @@ export default function App() {
       {showLoginModal && <LoginModal />}
     </div>
   );
+   function AuditLogModal() {
+    return (
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full my-8 max-h-[90vh] overflow-y-auto">
+          <div className="sticky top-0 bg-gradient-to-r from-purple-600 to-purple-700 text-white p-6 rounded-t-2xl flex justify-between items-center">
+            <h2 className="text-2xl font-bold flex items-center gap-3">
+              <History className="w-7 h-7" />
+              Activity Audit Log
+            </h2>
+            <button
+              onClick={() => setShowAuditLog(false)}
+              className="hover:bg-white/20 p-2 rounded-lg transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+
+          <div className="p-6">
+            {auditLogs.length === 0 ? (
+              <div className="text-center py-12">
+                <History className="w-20 h-20 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">No activity logs yet</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {auditLogs.map((log, index) => (
+                  <div
+                    key={index}
+                    className="border-2 border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                            log.action === "DELETE" ? "bg-red-100 text-red-800" :
+                            log.action === "ADD" ? "bg-green-100 text-green-800" :
+                            log.action === "EDIT" ? "bg-blue-100 text-blue-800" :
+                            log.action === "LOGIN" ? "bg-purple-100 text-purple-800" :
+                            log.action === "LOGOUT" ? "bg-gray-100 text-gray-800" :
+                            "bg-yellow-100 text-yellow-800"
+                          }`}>
+                            {log.action}
+                          </span>
+                          <span className="text-sm font-semibold text-gray-800">
+                            {log.user_name}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            ({log.user_role})
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700 mb-1">
+                          {log.details}
+                        </p>
+                        {log.patient_name && (
+                          <p className="text-sm text-gray-600">
+                            Patient: <strong>{log.patient_name}</strong>
+                          </p>
+                        )}
+                        {log.old_value && log.new_value && (
+                          <p className="text-xs text-gray-500 mt-2">
+                            Changed: <span className="line-through">{log.old_value}</span> → <strong>{log.new_value}</strong>
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-right text-xs text-gray-500">
+                        <div>{new Date(log.timestamp).toLocaleDateString()}</div>
+                        <div>{new Date(log.timestamp).toLocaleTimeString()}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
 }
