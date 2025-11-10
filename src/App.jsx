@@ -58,8 +58,10 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
-  const { patients, loading, loadPatients } = usePatients(currentUser || {});
-  const { auditLogs, createAuditLog } = useAuditLogs(currentUser || {});
+
+  const { patients, loading, loadPatients } = usePatients(currentUser);
+  const { auditLogs, createAuditLog } = useAuditLogs(currentUser);
+
 
   
   // Keep all your other state:
