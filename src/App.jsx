@@ -65,9 +65,6 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState("");
   // ...
   
-  // PAGINATION STATE
-  const [currentPage, setCurrentPage] = useState(1);
-  const [patientsPerPage] = useState(12); // Show 12 patients per page (4x3 grid)
 
   // Check for logged in user
   useEffect(() => {
