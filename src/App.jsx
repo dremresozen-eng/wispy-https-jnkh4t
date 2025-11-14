@@ -36,10 +36,14 @@ const SUPABASE_ANON_KEY =
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-
 export default function App() {
-  const [patients, setPatients] = useState([]);
+  // Auth State
+  const [session, setSession] = useState(null);  // ← ADD THIS LINE!
+  const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // App State
+  const [patients, setPatients] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterUrgency, setFilterUrgency] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -49,14 +53,13 @@ export default function App() {
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [currentView, setCurrentView] = useState("waitlist");
   const [showStats, setShowStats] = useState(true);
-  const [currentUser, setCurrentUser] = useState(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [selectedPatients, setSelectedPatients] = useState([]);
   const [showBulkSchedule, setShowBulkSchedule] = useState(false);
 
   // PAGINATION STATE
   const [currentPage, setCurrentPage] = useState(1);
-  const [patientsPerPage] = useState(12); // Show 12 patients per page (4x3 grid)
+  const [patientsPerPage] = useState(12);
 
   const surgeryTypes = [
     "Phacoemulsification",
