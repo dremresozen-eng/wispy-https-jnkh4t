@@ -242,85 +242,91 @@ setLoading(false);
 
   // SECURE LOGIN MODAL
   const LoginModal = () => {
-const [email, setEmail] = useState('');
-const [password, setPassword] = useState('');
-const [error, setError] = useState('');
-const [isLoading, setIsLoading] = useState(false);
-const handleLogin = async (e) => {
-  e.preventDefault();
-  setError('');
-  setIsLoading(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  try {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    
-    if (error) throw error;
-  } catch (error) {
-    setError(error.message || 'Invalid email or password');
-  } finally {
-    setIsLoading(false);
-  }
-};
-return (
-<div className="fixed inset-0 bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center p-4">
-<div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
-<div className="text-center mb-8">
-<div className="bg-gradient-to-r from-blue-600 to-blue-700 w-20 h-20 rounded-full flex items-center justify-center m
-<Shield className="w-10 h-10 text-white" />
-</div>
-<h1 className="text-3xl font-bold text-gray-800">Secure Login</h1>
-</div>
-{error && (
-<div className="bg-red-50 border-2 border-red-300 rounded-lg p-3 mb-4">
-<p className="text-red-800 text-sm">{error}</p>
-</div>
-)}
-<form onSubmit={handleLogin} className="space-y-4">
-<div>
-<label className="block text-sm font-semibold text-gray-700 mb-2">
-Email Address
-</label>
-<input
-type="email"
-required
-value={email}
-onChange={(e) => setEmail(e.target.value)}
-/>
-className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 outline-none"
-</div>
-<div>
-<label className="block text-sm font-semibold text-gray-700 mb-2">
-Password
-</label>
-<input
-type="password"
-required
-value={password}
-onChange={(e) => setPassword(e.target.value)}
-/>
-className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 outline-none"
-</div>
-<button
-type="submit"
-disabled={isLoading}
-className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-semibold disable
->
-{isLoading ? 'Signing in...' : 'Sign In Securely'}
-</button>
-</form>
-<div className="mt-6 p-4 bg-blue-50 rounded-lg">
-<p className="text-xs text-blue-800 text-center">
-Secured with Supabase Auth
-</p>
-</div>
-</div>
-</div>
-);
-};
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
 
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      
+      if (error) throw error;
+    } catch (error) {
+      setError(error.message || 'Invalid email or password');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
+        <div className="text-center mb-8">
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Shield className="w-10 h-10 text-white" />
+          </div>
+          <h1 className="text-3xl font-bold text-gray-800">Secure Login</h1>
+        </div>
+
+        {error && (
+          <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3 mb-4">
+            <p className="text-red-800 text-sm">{error}</p>
+          </div>
+        )}
+
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Email Address
+            </label>
+            <input
+              type="email"
+              required
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 outline-none"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Password
+            </label>
+            <input
+              type="password"
+              required
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 outline-none"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-semibold disabled:opacity-50"
+          >
+            {isLoading ? 'Signing in...' : 'Sign In Securely'}
+          </button>
+        </form>
+
+        <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+          <p className="text-xs text-blue-800 text-center">
+            Secured with Supabase Auth
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
   const handleLogout = async () => {
 if (window.confirm("Are you sure you want to logout?")) {
 await supabase.auth.signOut();
