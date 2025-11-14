@@ -247,20 +247,22 @@ const [password, setPassword] = useState('');
 const [error, setError] = useState('');
 const [isLoading, setIsLoading] = useState(false);
 const handleLogin = async (e) => {
-e.preventDefault();
-setIsLoading(true);
-setError('');
-try {
-email,
-password,
-});
-if (error) throw error;
-} catch (error) {
-setError(error.message);
-} finally {
-const { error } = await supabase.auth.signInWithPassword({
-setIsLoading(false);
-}
+  e.preventDefault();
+  setError('');
+  setIsLoading(true);
+
+  try {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    
+    if (error) throw error;
+  } catch (error) {
+    setError(error.message || 'Invalid email or password');
+  } finally {
+    setIsLoading(false);
+  }
 };
 return (
 <div className="fixed inset-0 bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center p-4">
