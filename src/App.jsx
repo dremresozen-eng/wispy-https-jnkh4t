@@ -28,6 +28,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
+import { Shield, Mail, Lock } from "lucide-react";
 
 const SUPABASE_URL = "https://zzifgbkljofyzlxbzypk.supabase.co";
 const SUPABASE_ANON_KEY =
@@ -35,15 +36,6 @@ const SUPABASE_ANON_KEY =
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// AUTHORIZED USERS DATABASE
-const AUTHORIZED_USERS = [
-  { name: "Özlem Şahin", password: "0000", role: "admin" },
-  { name: "Mehmet Orkun Sevik", password: "0001", role: "surgeon" },
-  { name: "Aslan Aykut", password: "0002", role: "surgeon" },
-  { name: "Emre Sözen", password: "0004", role: "surgeon" },
-  { name: "Tuğçe Kılıçarslan", password: "0005", role: "surgeon" },
-  { name: "Yiğitalp Akpınar", password: "0006", role: "surgeon" },
-];
 
 export default function App() {
   const [patients, setPatients] = useState([]);
@@ -128,14 +120,24 @@ export default function App() {
   ];
 
   // Check for logged in user
-  useEffect(() => {
-    const savedUser = localStorage.getItem("surgicalWaitlistUser");
-    if (savedUser) {
-      setCurrentUser(JSON.parse(savedUser));
-    } else {
-      setShowLoginModal(true);
-    }
-  }, []);
+ useEffect(() => {
+checkAuth();
+const { data: authListener } = supabase.auth.onAuthStateChange(
+async (event, session) => {
+setSession(session);
+setCurrentUser(session?.user ?? null);
+}
+);
+return () => {
+authListener?.subscription.unsubscribe();
+};
+}, []);
+const checkAuth = async () => {
+const { data: { session } } = await supabase.auth.getSession();
+setSession(session);
+setCurrentUser(session?.user ?? null);
+setLoading(false);
+};
 
   useEffect(() => {
     if (currentUser) {
@@ -240,124 +242,88 @@ export default function App() {
 
   // SECURE LOGIN MODAL
   const LoginModal = () => {
-    const [selectedName, setSelectedName] = useState("");
-    const [password, setPassword] = useState("");
-    const [error, setError] = useState("");
+const [email, setEmail] = useState('');
+const [password, setPassword] = useState('');
+const [error, setError] = useState('');
+const [isLoading, setIsLoading] = useState(false);
+const handleLogin = async (e) => {
+e.preventDefault();
+setIsLoading(true);
+setError('');
+try {
+email,
+password,
+});
+if (error) throw error;
+} catch (error) {
+setError(error.message);
+} finally {
+const { error } = await supabase.auth.signInWithPassword({
+setIsLoading(false);
+}
+};
+return (
+<div className="fixed inset-0 bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center p-4">
+<div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
+<div className="text-center mb-8">
+<div className="bg-gradient-to-r from-blue-600 to-blue-700 w-20 h-20 rounded-full flex items-center justify-center m
+<Shield className="w-10 h-10 text-white" />
+</div>
+<h1 className="text-3xl font-bold text-gray-800">Secure Login</h1>
+</div>
+{error && (
+<div className="bg-red-50 border-2 border-red-300 rounded-lg p-3 mb-4">
+<p className="text-red-800 text-sm">{error}</p>
+</div>
+)}
+<form onSubmit={handleLogin} className="space-y-4">
+<div>
+<label className="block text-sm font-semibold text-gray-700 mb-2">
+Email Address
+</label>
+<input
+type="email"
+required
+value={email}
+onChange={(e) => setEmail(e.target.value)}
+/>
+className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 outline-none"
+</div>
+<div>
+<label className="block text-sm font-semibold text-gray-700 mb-2">
+Password
+</label>
+<input
+type="password"
+required
+value={password}
+onChange={(e) => setPassword(e.target.value)}
+/>
+className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 outline-none"
+</div>
+<button
+type="submit"
+disabled={isLoading}
+className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-semibold disable
+>
+{isLoading ? 'Signing in...' : 'Sign In Securely'}
+</button>
+</form>
+<div className="mt-6 p-4 bg-blue-50 rounded-lg">
+<p className="text-xs text-blue-800 text-center">
+Secured with Supabase Auth
+</p>
+</div>
+</div>
+</div>
+);
+};
 
-    const handleLogin = () => {
-      if (!selectedName) {
-        setError("Please select your name");
-        return;
-      }
-      if (!password) {
-        setError("Please enter your password");
-        return;
-      }
-
-      // Find user
-      const user = AUTHORIZED_USERS.find(
-        u => u.name === selectedName && u.password === password
-      );
-
-      if (user) {
-        const userData = { 
-          name: user.name, 
-          role: user.role, 
-          loginTime: new Date().toISOString() 
-        };
-        localStorage.setItem("surgicalWaitlistUser", JSON.stringify(userData));
-        setCurrentUser(userData);
-        setShowLoginModal(false);
-        setError("");
-      } else {
-        setError("Invalid password! Please try again.");
-        setPassword("");
-      }
-    };
-
-    return (
-      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
-          <div className="text-center mb-6">
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Stethoscope className="w-8 h-8 text-white" />
-            </div>
-            <h2 className="text-2xl font-bold text-gray-800">Surgical Waitlist Manager</h2>
-            <h2 className="text-2xl font-bold text-gray-800">Surgical Waitlist Manager v0.4</h2>
-            <p className="text-gray-600 mt-2">Please sign in to continue</p>
-          </div>
-
-          {error && (
-            <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3 mb-4 flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-red-600" />
-              <p className="text-red-800 text-sm font-semibold">{error}</p>
-            </div>
-          )}
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Select Your Name
-              </label>
-              <select
-                className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none bg-white"
-                value={selectedName}
-                onChange={(e) => {
-                  setSelectedName(e.target.value);
-                  setError("");
-                }}
-              >
-                <option value="">-- Choose your name --</option>
-                {AUTHORIZED_USERS.map((user) => (
-                  <option key={user.name} value={user.name}>
-                    {user.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Password
-              </label>
-              <input
-                type="password"
-                className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  setError("");
-                }}
-                onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
-              />
-            </div>
-
-            <button
-              onClick={handleLogin}
-              className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 font-semibold shadow-lg shadow-blue-500/30 transition-all"
-            >
-              Sign In
-            </button>
-          </div>
-
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <p className="text-xs text-gray-600 text-center">
-              🔒 Secure Access - Authorized Personnel Only
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const handleLogout = () => {
-    if (window.confirm("Are you sure you want to logout?")) {
-      localStorage.removeItem("surgicalWaitlistUser");
-      setCurrentUser(null);
-      setShowLoginModal(true);
-    }
-  };
+  const handleLogout = async () => {
+if (window.confirm("Are you sure you want to logout?")) {
+await supabase.auth.signOut();
+}
+};
 
   // Delete patient function
   const handleDeletePatient = async (patientId) => {
