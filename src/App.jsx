@@ -37,6 +37,67 @@ const SUPABASE_ANON_KEY =
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ============================================
+// AUDIT LOGGING FUNCTIONS
+// ============================================
+
+const logAudit = async (action, entityType, entityId, oldData = null, newData = null, notes = null) => {
+  try {
+    const user = currentUser;
+    if (!user) return;
+
+    // Calculate what changed
+    let changes = null;
+    if (oldData && newData) {
+      changes = {};
+      Object.keys(newData).forEach(key => {
+        if (JSON.stringify(oldData[key]) !== JSON.stringify(newData[key])) {
+          changes[key] = {
+            from: oldData[key],
+            to: newData[key]
+          };
+        }
+      });
+    }
+
+    const logEntry = {
+      user_id: user.id,
+      user_email: user.email,
+      user_name: user.user_metadata?.name || user.email,
+      action,
+      entity_type: entityType,
+      entity_id: entityId,
+      old_data: oldData,
+      new_data: newData,
+      changes,
+      notes
+    };
+
+    const { error } = await supabase
+      .from('audit_logs')
+      .insert([logEntry]);
+
+    if (error) {
+      console.error('Error logging audit:', error);
+    }
+  } catch (error) {
+    console.error('Error in logAudit:', error);
+  }
+};
+
+// Helper function to get patient data for logging
+const getPatientSnapshot = (patient) => {
+  return {
+    name: patient.name,
+    patient_id: patient.patient_id,
+    surgery_type: patient.surgery_type,
+    urgency: patient.urgency,
+    status: patient.status,
+    surgeon: patient.surgeon,
+    scheduled_date: patient.scheduled_date
+  };
+};
+
 const SURGERY_TYPES = [
   "Phacoemulsification",
   "Pars Plana Vitrectomy",
@@ -103,6 +164,7 @@ export default function App() {
   const [selectedPatients, setSelectedPatients] = useState([]);
   const [showBulkSchedule, setShowBulkSchedule] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [showAuditLogs, setShowAuditLogs] = useState(false);
 
   // ============================================
   // HELPER FUNCTIONS
@@ -161,11 +223,22 @@ export default function App() {
     }
   };
 
-  const handleLogout = async () => {
-    if (window.confirm("Are you sure you want to logout?")) {
-      await supabase.auth.signOut();
-    }
-  };
+  // REPLACE handleLogout:
+const handleLogout = async () => {
+  if (window.confirm("Are you sure you want to logout?")) {
+    // ✅ LOG THE LOGOUT
+    await logAudit(
+      'LOGOUT',
+      'auth',
+      currentUser.id,
+      null,
+      { email: currentUser.email },
+      'User logged out'
+    );
+
+    await supabase.auth.signOut();
+  }
+};
 
   // ============================================
   // DATA MANAGEMENT
@@ -202,23 +275,43 @@ export default function App() {
     }
   };
 
-  const handleDeletePatient = async (patientId) => {
-    if (!window.confirm("Are you sure you want to delete this patient? This action cannot be undone.")) {
-      return;
-    }
+ // AFTER (with logging):
+const handleDeletePatient = async (patientId) => {
+  if (!window.confirm("Are you sure you want to delete this patient? This action cannot be undone.")) return;
+  
+  try {
+    // Get patient data before deleting
+    const { data: patientToDelete } = await supabase
+      .from("patients")
+      .select("*")
+      .eq("id", patientId)
+      .single();
 
-    try {
-      const { error } = await supabase.from("patients").delete().eq("id", patientId);
+    const { error } = await supabase
+      .from("patients")
+      .delete()
+      .eq("id", patientId);
 
-      if (error) throw error;
-      setSelectedPatient(null);
-      loadPatients();
-      alert("Patient deleted successfully");
-    } catch (error) {
-      console.error("Error:", error);
-      alert("Error deleting patient");
-    }
-  };
+    if (error) throw error;
+
+    // ✅ LOG THE ACTION
+    await logAudit(
+      'DELETE',
+      'patient',
+      patientId,
+      getPatientSnapshot(patientToDelete),
+      null,
+      `Deleted patient: ${patientToDelete.name} (ID: ${patientToDelete.patient_id})`
+    );
+
+    setSelectedPatient(null);
+    loadPatients();
+    alert("Patient deleted successfully");
+  } catch (error) {
+    console.error("Error:", error);
+    alert("Error deleting patient");
+  }
+};
 
   const exportToCSV = () => {
     const headers = ["Name", "Patient ID", "Surgery Type", "Urgency", "Status", "Surgeon", "Wait Days", "Scheduled Date"];
@@ -307,24 +400,38 @@ export default function App() {
     const [error, setError] = useState("");
     const [isLoading, setIsLoading] = useState(false);
 
-    const handleLogin = async (e) => {
-      e.preventDefault();
-      setError("");
-      setIsLoading(true);
+    // In LoginModal, after successful login:
+const handleLogin = async (e) => {
+  e.preventDefault();
+  setError("");
+  setIsLoading(true);
 
-      try {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+  try {
+    const { error, data } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-        if (error) throw error;
-      } catch (error) {
-        setError(error.message || "Invalid email or password");
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    if (error) throw error;
+
+    // ✅ LOG THE LOGIN
+    setTimeout(async () => {
+      await logAudit(
+        'LOGIN',
+        'auth',
+        data.user.id,
+        null,
+        { email: data.user.email },
+        'User logged in successfully'
+      );
+    }, 1000);
+
+  } catch (error) {
+    setError(error.message || "Invalid email or password");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
     return (
       <div className="fixed inset-0 bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center p-4">
@@ -601,18 +708,35 @@ export default function App() {
           return;
         }
 
-        const { error } = await supabase.from("patients").insert([
-          {
-            ...formData,
-            patient_key: `patient-${Date.now()}`,
-            added_by: getUserName(), // ✅ FIXED: Now uses helper function
-            scheduled_date: formData.scheduled_date || null,
-          },
-        ]);
+        // AFTER (with logging):
+const patientData = {
+  ...formData,
+  patient_key: `patient-${Date.now()}`,
+  added_by: getUserName(),
+  added_by_id: currentUser.id,
+  scheduled_date: formData.scheduled_date || null,
+};
 
-        if (error) throw error;
-        setShowAddModal(false);
-        loadPatients();
+const { data: newPatient, error } = await supabase
+  .from("patients")
+  .insert([patientData])
+  .select()
+  .single();
+
+if (error) throw error;
+
+// ✅ LOG THE ACTION
+await logAudit(
+  'CREATE',
+  'patient',
+  newPatient.id,
+  null,
+  getPatientSnapshot(newPatient),
+  `Added patient: ${newPatient.name} (ID: ${newPatient.patient_id})`
+);
+
+setShowAddModal(false);
+loadPatients();
       } catch (error) {
         console.error("Error:", error);
         alert("Error adding patient. Please try again.");
@@ -785,35 +909,51 @@ export default function App() {
     const [editData, setEditData] = useState(patient);
     const [showQuickActions, setShowQuickActions] = useState(false);
 
-    const handleUpdate = async () => {
-      try {
-        const { error } = await supabase
-          .from("patients")
-          .update({
-            name: editData.name,
-            patient_id: editData.patient_id,
-            surgery_type: editData.surgery_type,
-            urgency: editData.urgency,
-            status: editData.status,
-            surgeon: editData.surgeon,
-            case_information: editData.case_information,
-            anesthesia_approval: editData.anesthesia_approval,
-            iol_diopter: editData.iol_diopter,
-            equipment_needed: editData.equipment_needed,
-            notes: editData.notes,
-            scheduled_date: editData.scheduled_date || null,
-            photo: editData.photo,
-          })
-          .eq("id", patient.id);
-
-        if (error) throw error;
-        onClose();
-        loadPatients();
-      } catch (error) {
-        console.error("Error:", error);
-        alert("Error updating patient");
-      }
+   // AFTER (with logging):
+const handleUpdate = async () => {
+  try {
+    const updateData = {
+      name: editData.name,
+      patient_id: editData.patient_id,
+      surgery_type: editData.surgery_type,
+      urgency: editData.urgency,
+      status: editData.status,
+      surgeon: editData.surgeon,
+      case_information: editData.case_information,
+      anesthesia_approval: editData.anesthesia_approval,
+      iol_diopter: editData.iol_diopter,
+      equipment_needed: editData.equipment_needed,
+      notes: editData.notes,
+      scheduled_date: editData.scheduled_date || null,
+      photo: editData.photo,
+      updated_by: getUserName(),
+      updated_by_id: currentUser.id,
     };
+
+    const { error } = await supabase
+      .from("patients")
+      .update(updateData)
+      .eq("id", patient.id);
+
+    if (error) throw error;
+
+    // ✅ LOG THE ACTION
+    await logAudit(
+      'UPDATE',
+      'patient',
+      patient.id,
+      getPatientSnapshot(patient),
+      getPatientSnapshot(editData),
+      `Updated patient: ${editData.name} (ID: ${editData.patient_id})`
+    );
+
+    onClose();
+    loadPatients();
+  } catch (error) {
+    console.error("Error:", error);
+    alert("Error updating patient");
+  }
+};
 
     const handlePhotoUpload = (e) => {
       const file = e.target.files[0];
@@ -1137,6 +1277,183 @@ export default function App() {
     );
   };
 
+
+  // Add this component in your App.jsx
+
+const AuditLogsModal = ({ onClose }) => {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filterAction, setFilterAction] = useState('all');
+  const [filterUser, setFilterUser] = useState('all');
+
+  useEffect(() => {
+    loadLogs();
+  }, []);
+
+  const loadLogs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+      setLogs(data || []);
+    } catch (error) {
+      console.error('Error loading logs:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredLogs = logs.filter(log => {
+    const matchesAction = filterAction === 'all' || log.action === filterAction;
+    const matchesUser = filterUser === 'all' || log.user_email === filterUser;
+    return matchesAction && matchesUser;
+  });
+
+  const uniqueUsers = [...new Set(logs.map(l => l.user_email))];
+
+  const getActionColor = (action) => {
+    switch(action) {
+      case 'CREATE': return 'bg-green-100 text-green-800';
+      case 'UPDATE': return 'bg-blue-100 text-blue-800';
+      case 'DELETE': return 'bg-red-100 text-red-800';
+      case 'LOGIN': return 'bg-purple-100 text-purple-800';
+      case 'LOGOUT': return 'bg-gray-100 text-gray-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getActionIcon = (action) => {
+    switch(action) {
+      case 'CREATE': return '➕';
+      case 'UPDATE': return '✏️';
+      case 'DELETE': return '🗑️';
+      case 'LOGIN': return '🔓';
+      case 'LOGOUT': return '🔒';
+      default: return '📝';
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
+        <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white p-6 flex justify-between items-center">
+          <h2 className="text-2xl font-bold flex items-center gap-3">
+            <FileText className="w-7 h-7" />
+            Audit Logs - Activity History
+          </h2>
+          <button onClick={onClose} className="hover:bg-white/20 p-2 rounded-lg transition-colors">
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        <div className="p-6">
+          {/* Filters */}
+          <div className="flex gap-4 mb-6">
+            <select
+              className="px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 outline-none bg-white"
+              value={filterAction}
+              onChange={(e) => setFilterAction(e.target.value)}
+            >
+              <option value="all">All Actions</option>
+              <option value="CREATE">➕ Created</option>
+              <option value="UPDATE">✏️ Updated</option>
+              <option value="DELETE">🗑️ Deleted</option>
+              <option value="LOGIN">🔓 Login</option>
+              <option value="LOGOUT">🔒 Logout</option>
+            </select>
+
+            <select
+              className="px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 outline-none bg-white"
+              value={filterUser}
+              onChange={(e) => setFilterUser(e.target.value)}
+            >
+              <option value="all">All Users</option>
+              {uniqueUsers.map(user => (
+                <option key={user} value={user}>{user}</option>
+              ))}
+            </select>
+
+            <button
+              onClick={loadLogs}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold"
+            >
+              🔄 Refresh
+            </button>
+          </div>
+
+          {/* Logs Table */}
+          <div className="overflow-auto max-h-[60vh]">
+            {loading ? (
+              <div className="text-center py-20">
+                <div className="animate-spin rounded-full h-12 w-12 border-4 border-purple-600 border-t-transparent mx-auto"></div>
+                <p className="mt-4 text-gray-600">Loading logs...</p>
+              </div>
+            ) : filteredLogs.length === 0 ? (
+              <div className="text-center py-20">
+                <FileText className="w-20 h-20 text-gray-300 mx-auto mb-4" />
+                <p className="text-xl text-gray-500">No audit logs found</p>
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Timestamp</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Action</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">User</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Details</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {filteredLogs.map((log) => (
+                    <tr key={log.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {new Date(log.created_at).toLocaleString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getActionColor(log.action)}`}>
+                          {getActionIcon(log.action)} {log.action}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <div className="font-semibold text-gray-800">{log.user_name}</div>
+                        <div className="text-xs text-gray-500">{log.user_email}</div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">
+                        {log.notes || '-'}
+                        {log.changes && Object.keys(log.changes).length > 0 && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            Changed: {Object.keys(log.changes).join(', ')}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          <div className="mt-6 p-4 bg-purple-50 rounded-lg border-2 border-purple-200">
+            <p className="text-sm text-purple-800">
+              📊 Showing {filteredLogs.length} of {logs.length} total audit logs
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+  
   // ============================================
   // RENDER
   // ============================================
@@ -1210,6 +1527,13 @@ export default function App() {
                 <Printer className="w-5 h-5" />
                 Print
               </button>
+              <button
+  onClick={() => setShowAuditLogs(true)}
+  className="flex items-center gap-2 bg-purple-600 text-white px-5 py-3 rounded-xl hover:bg-purple-700 font-semibold shadow-lg shadow-purple-500/30 transition-all"
+>
+  <FileText className="w-5 h-5" />
+  Audit Logs
+</button>
               {selectedPatients.length > 0 && (
                 <button
                   onClick={() => setShowBulkSchedule(true)}
@@ -1399,6 +1723,7 @@ export default function App() {
       {showAddModal && <AddPatientModal />}
       {selectedPatient && <PatientDetailModal patient={selectedPatient} onClose={() => setSelectedPatient(null)} />}
       {showBulkSchedule && <BulkScheduleModal />}
+      {showAuditLogs && <AuditLogsModal onClose={() => setShowAuditLogs(false)} />}
     </div>
   );
 }
