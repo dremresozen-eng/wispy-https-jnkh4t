@@ -37,67 +37,6 @@ const SUPABASE_ANON_KEY =
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// ============================================
-// AUDIT LOGGING FUNCTIONS
-// ============================================
-
-const logAudit = async (action, entityType, entityId, oldData = null, newData = null, notes = null) => {
-  try {
-    const user = currentUser;
-    if (!user) return;
-
-    // Calculate what changed
-    let changes = null;
-    if (oldData && newData) {
-      changes = {};
-      Object.keys(newData).forEach(key => {
-        if (JSON.stringify(oldData[key]) !== JSON.stringify(newData[key])) {
-          changes[key] = {
-            from: oldData[key],
-            to: newData[key]
-          };
-        }
-      });
-    }
-
-    const logEntry = {
-      user_id: user.id,
-      user_email: user.email,
-      user_name: user.user_metadata?.name || user.email,
-      action,
-      entity_type: entityType,
-      entity_id: entityId,
-      old_data: oldData,
-      new_data: newData,
-      changes,
-      notes
-    };
-
-    const { error } = await supabase
-      .from('audit_logs')
-      .insert([logEntry]);
-
-    if (error) {
-      console.error('Error logging audit:', error);
-    }
-  } catch (error) {
-    console.error('Error in logAudit:', error);
-  }
-};
-
-// Helper function to get patient data for logging
-const getPatientSnapshot = (patient) => {
-  return {
-    name: patient.name,
-    patient_id: patient.patient_id,
-    surgery_type: patient.surgery_type,
-    urgency: patient.urgency,
-    status: patient.status,
-    surgeon: patient.surgeon,
-    scheduled_date: patient.scheduled_date
-  };
-};
-
 const SURGERY_TYPES = [
   "Phacoemulsification",
   "Pars Plana Vitrectomy",
@@ -172,6 +111,65 @@ export default function App() {
 
   const getUserName = () => currentUser?.user_metadata?.name || currentUser?.email || "User";
   const getUserRole = () => currentUser?.user_metadata?.role || "user";
+  // ✅ AUDIT LOGGING FUNCTIONS (INSIDE COMPONENT)
+  const logAudit = async (action, entityType, entityId, oldData = null, newData = null, notes = null) => {
+    try {
+      if (!currentUser) {
+        console.log('No user logged in, skipping audit log');
+        return;
+      }
+
+      let changes = null;
+      if (oldData && newData) {
+        changes = {};
+        Object.keys(newData).forEach(key => {
+          if (JSON.stringify(oldData[key]) !== JSON.stringify(newData[key])) {
+            changes[key] = { from: oldData[key], to: newData[key] };
+          }
+        });
+      }
+
+      const logEntry = {
+        user_id: currentUser.id,
+        user_email: currentUser.email,
+        user_name: currentUser.user_metadata?.name || currentUser.email,
+        action,
+        entity_type: entityType,
+        entity_id: entityId,
+        old_data: oldData,
+        new_data: newData,
+        changes,
+        notes
+      };
+
+      console.log('Creating audit log:', logEntry);
+
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .insert([logEntry])
+        .select();
+
+      if (error) {
+        console.error('Error logging audit:', error);
+      } else {
+        console.log('Audit log created successfully:', data);
+      }
+    } catch (error) {
+      console.error('Error in logAudit:', error);
+    }
+  };
+
+  const getPatientSnapshot = (patient) => {
+    return {
+      name: patient.name,
+      patient_id: patient.patient_id,
+      surgery_type: patient.surgery_type,
+      urgency: patient.urgency,
+      status: patient.status,
+      surgeon: patient.surgeon,
+      scheduled_date: patient.scheduled_date
+    };
+  };
 
   const calculateWaitDays = (addedDate) => {
     const now = new Date();
