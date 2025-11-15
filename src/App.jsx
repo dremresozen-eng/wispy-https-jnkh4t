@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { calculateWaitDays, sortPatients } from "./utils/calculations";
 import { getPatientSnapshot, calculateChanges } from "./utils/audit";
+import { generateEscapedCSV } from "./utils/export";
 import {
   Search,
   Plus,
@@ -275,19 +276,7 @@ export default function App() {
   };
 
   const exportToCSV = () => {
-    const headers = ["Name", "Patient ID", "Surgery Type", "Urgency", "Status", "Surgeon", "Wait Days", "Scheduled Date"];
-    const rows = filteredPatients.map((p) => [
-      p.name,
-      p.patient_id,
-      p.surgery_type,
-      p.urgency,
-      p.status,
-      p.surgeon || "",
-      calculateWaitDays(p.added_date),
-      p.scheduled_date || "",
-    ]);
-
-    const csv = [headers, ...rows].map((row) => row.join(",")).join("\n");
+    const csv = generateEscapedCSV(filteredPatients, calculateWaitDays);
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
