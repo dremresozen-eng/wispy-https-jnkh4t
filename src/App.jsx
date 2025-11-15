@@ -135,7 +135,7 @@ export default function App() {
         user_name: currentUser.user_metadata?.name || currentUser.email,
         action,
         entity_type: entityType,
-        entity_id: entityId,
+        entity_id: entityId ? String(entityId) : null,  // ✅ Convert to string
         old_data: oldData,
         new_data: newData,
         changes,
@@ -150,12 +150,15 @@ export default function App() {
         .select();
 
       if (error) {
-        console.error('Error logging audit:', error);
+        console.error('❌ Error logging audit:', error);
+        console.error('❌ Error code:', error.code);
+        console.error('❌ Error message:', error.message);
+        console.error('❌ Error details:', error.details);
       } else {
-        console.log('Audit log created successfully:', data);
+        console.log('✅ Audit log created successfully:', data);
       }
     } catch (error) {
-      console.error('Error in logAudit:', error);
+      console.error('❌ Error in logAudit:', error);
     }
   };
 
