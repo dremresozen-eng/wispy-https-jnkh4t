@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { calculateWaitDays } from "./utils/calculations";
+import { calculateWaitDays, sortPatients } from "./utils/calculations";
+import { getPatientSnapshot, calculateChanges } from "./utils/audit";
+import { generateEscapedCSV } from "./utils/export";
 import {
   Search,
   Plus,
@@ -120,15 +122,7 @@ export default function App() {
         return;
       }
 
-      let changes = null;
-      if (oldData && newData) {
-        changes = {};
-        Object.keys(newData).forEach(key => {
-          if (JSON.stringify(oldData[key]) !== JSON.stringify(newData[key])) {
-            changes[key] = { from: oldData[key], to: newData[key] };
-          }
-        });
-      }
+      const changes = calculateChanges(oldData, newData);
 
       const logEntry = {
         user_id: currentUser.id,
@@ -161,29 +155,6 @@ export default function App() {
     } catch (error) {
       console.error('❌ Error in logAudit:', error);
     }
-  };
-
-  const getPatientSnapshot = (patient) => {
-    return {
-      name: patient.name,
-      patient_id: patient.patient_id,
-      surgery_type: patient.surgery_type,
-      urgency: patient.urgency,
-      status: patient.status,
-      surgeon: patient.surgeon,
-      scheduled_date: patient.scheduled_date
-    };
-  };
-
-
-  const sortPatients = (patientList) => {
-    return [...patientList].sort((a, b) => {
-      if (a.urgency !== b.urgency) {
-        const urgencyOrder = { urgent: 0, soon: 1, routine: 2 };
-        return urgencyOrder[a.urgency] - urgencyOrder[b.urgency];
-      }
-      return calculateWaitDays(b.added_date) - calculateWaitDays(a.added_date);
-    });
   };
 
   // ============================================
@@ -305,19 +276,7 @@ export default function App() {
   };
 
   const exportToCSV = () => {
-    const headers = ["Name", "Patient ID", "Surgery Type", "Urgency", "Status", "Surgeon", "Wait Days", "Scheduled Date"];
-    const rows = filteredPatients.map((p) => [
-      p.name,
-      p.patient_id,
-      p.surgery_type,
-      p.urgency,
-      p.status,
-      p.surgeon || "",
-      calculateWaitDays(p.added_date),
-      p.scheduled_date || "",
-    ]);
-
-    const csv = [headers, ...rows].map((row) => row.join(",")).join("\n");
+    const csv = generateEscapedCSV(filteredPatients, calculateWaitDays);
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
