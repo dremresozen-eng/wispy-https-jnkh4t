@@ -92,10 +92,10 @@ export default function App() {
   // App State
   const [patients, setPatients] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterUrgency, setFilterUrgency] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [filterSurgeon, setFilterSurgeon] = useState("all");
-  const [filterSurgeryType, setFilterSurgeryType] = useState("all");
+  const [filterUrgency, setFilterUrgency] = useState([]);
+  const [filterStatus, setFilterStatus] = useState([]);
+  const [filterSurgeon, setFilterSurgeon] = useState([]);
+  const [filterSurgeryType, setFilterSurgeryType] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [currentView, setCurrentView] = useState("waitlist");
@@ -341,10 +341,10 @@ export default function App() {
       const matchesSearch =
         patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         patient.patient_id.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesUrgency = filterUrgency === "all" || patient.urgency === filterUrgency;
-      const matchesStatus = filterStatus === "all" || patient.status === filterStatus;
-      const matchesSurgeon = filterSurgeon === "all" || patient.surgeon === filterSurgeon;
-      const matchesSurgeryType = filterSurgeryType === "all" || patient.surgery_type === filterSurgeryType;
+      const matchesUrgency = filterUrgency.length === 0 || filterUrgency.includes(patient.urgency);
+      const matchesStatus = filterStatus.length === 0 || filterStatus.includes(patient.status);
+      const matchesSurgeon = filterSurgeon.length === 0 || filterSurgeon.includes(patient.surgeon);
+      const matchesSurgeryType = filterSurgeryType.length === 0 || filterSurgeryType.includes(patient.surgery_type);
       return matchesSearch && matchesUrgency && matchesStatus && matchesSurgeon && matchesSurgeryType;
     });
     return sortPatients(filtered);
@@ -390,6 +390,91 @@ export default function App() {
   // SUB-COMPONENTS
   // ============================================
 
+  // ============================================
+  // MULTI-SELECT FILTER COMPONENT
+  // ============================================
+
+  const MultiSelectDropdown = ({ label, options, selected, onChange, icon }) => {
+    const [isOpen, setIsOpen] = useState(false);
+
+    const toggleOption = (option) => {
+      if (selected.includes(option)) {
+        onChange(selected.filter(item => item !== option));
+      } else {
+        onChange([...selected, option]);
+      }
+    };
+
+    const clearAll = () => {
+      onChange([]);
+      setIsOpen(false);
+    };
+
+    const selectAll = () => {
+      onChange(options);
+    };
+
+    return (
+      <div className="relative">
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className={`px-4 py-3 border-2 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none bg-white font-medium flex items-center justify-between gap-2 min-w-[200px] ${
+            selected.length > 0 ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            {icon}
+            {selected.length === 0 
+              ? label 
+              : `${label} (${selected.length})`
+            }
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        </button>
+
+        {isOpen && (
+          <>
+            <div 
+              className="fixed inset-0 z-10" 
+              onClick={() => setIsOpen(false)}
+            />
+            
+            <div className="absolute z-20 mt-2 w-full bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-80 overflow-y-auto">
+              <div className="sticky top-0 bg-gray-50 border-b-2 border-gray-200 p-2 flex gap-2">
+                <button
+                  onClick={selectAll}
+                  className="flex-1 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-100 rounded"
+                >
+                  Select All
+                </button>
+                <button
+                  onClick={clearAll}
+                  className="flex-1 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded"
+                >
+                  Clear All
+                </button>
+              </div>
+
+              {options.map((option) => (
+                <label
+                  key={option}
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(option)}
+                    onChange={() => toggleOption(option)}
+                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="font-medium text-gray-700">{option}</span>
+                </label>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
   const LoginModal = () => {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -1570,54 +1655,36 @@ const AuditLogsModal = ({ onClose }) => {
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
-                <select
-                  className="px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none bg-white font-medium"
-                  value={filterUrgency}
-                  onChange={(e) => setFilterUrgency(e.target.value)}
-                >
-                  <option value="all">All Urgency Levels</option>
-                  <option value="urgent">🔴 Urgent</option>
-                  <option value="soon">🟡 Soon</option>
-                  <option value="routine">🟢 Routine</option>
-                </select>
-                <select
-                  className="px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none bg-white font-medium"
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                >
-                  <option value="all">All Statuses</option>
-                  {STATUS_OPTIONS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
+                <MultiSelectDropdown
+                  label="Urgency Levels"
+                  options={['urgent', 'soon', 'routine']}
+                  selected={filterUrgency}
+                  onChange={setFilterUrgency}
+                  icon={<AlertCircle className="w-4 h-4" />}
+                />
+                <MultiSelectDropdown
+                  label="Status"
+                  options={STATUS_OPTIONS}
+                  selected={filterStatus}
+                  onChange={setFilterStatus}
+                  icon={<CheckCircle className="w-4 h-4" />}
+                />
               </div>
               <div className="flex flex-col md:flex-row gap-4">
-                <select
-                  className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none bg-white font-medium"
-                  value={filterSurgeon}
-                  onChange={(e) => setFilterSurgeon(e.target.value)}
-                >
-                  <option value="all">All Surgeons</option>
-                  {uniqueSurgeons.map((surgeon) => (
-                    <option key={surgeon} value={surgeon}>
-                      {surgeon}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none bg-white font-medium"
-                  value={filterSurgeryType}
-                  onChange={(e) => setFilterSurgeryType(e.target.value)}
-                >
-                  <option value="all">All Surgery Types</option>
-                  {SURGERY_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
+                <MultiSelectDropdown
+                  label="Surgeons"
+                  options={uniqueSurgeons}
+                  selected={filterSurgeon}
+                  onChange={setFilterSurgeon}
+                  icon={<User className="w-4 h-4" />}
+                />
+                <MultiSelectDropdown
+                  label="Surgery Types"
+                  options={SURGERY_TYPES}
+                  selected={filterSurgeryType}
+                  onChange={setFilterSurgeryType}
+                  icon={<Stethoscope className="w-4 h-4" />}
+                />
               </div>
             </div>
           )}
