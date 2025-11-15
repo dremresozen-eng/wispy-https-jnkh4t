@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { calculateWaitDays } from "./utils/calculations";
 import {
   Search,
   Plus,
@@ -174,12 +175,6 @@ export default function App() {
     };
   };
 
-  const calculateWaitDays = (addedDate) => {
-    const now = new Date();
-    const added = new Date(addedDate);
-    const diffTime = Math.abs(now - added);
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  };
 
   const sortPatients = (patientList) => {
     return [...patientList].sort((a, b) => {
