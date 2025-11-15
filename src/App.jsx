@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { calculateWaitDays } from "./utils/calculations";
+import { calculateWaitDays, sortPatients } from "./utils/calculations";
 import {
   Search,
   Plus,
@@ -173,17 +173,6 @@ export default function App() {
       surgeon: patient.surgeon,
       scheduled_date: patient.scheduled_date
     };
-  };
-
-
-  const sortPatients = (patientList) => {
-    return [...patientList].sort((a, b) => {
-      if (a.urgency !== b.urgency) {
-        const urgencyOrder = { urgent: 0, soon: 1, routine: 2 };
-        return urgencyOrder[a.urgency] - urgencyOrder[b.urgency];
-      }
-      return calculateWaitDays(b.added_date) - calculateWaitDays(a.added_date);
-    });
   };
 
   // ============================================
