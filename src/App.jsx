@@ -221,22 +221,20 @@ export default function App() {
     }
   };
 
-  // REPLACE handleLogout:
-const handleLogout = async () => {
-  if (window.confirm("Are you sure you want to logout?")) {
-    // ✅ LOG THE LOGOUT
-    await logAudit(
-      'LOGOUT',
-      'auth',
-      currentUser.id,
-      null,
-      { email: currentUser.email },
-      'User logged out'
-    );
+  const handleLogout = async () => {
+    if (window.confirm("Are you sure you want to logout?")) {
+      await logAudit(
+        'LOGOUT',
+        'auth',
+        currentUser.id,
+        null,
+        { email: currentUser.email },
+        'User logged out'
+      );
 
-    await supabase.auth.signOut();
-  }
-};
+      await supabase.auth.signOut();
+    }
+  };
 
   // ============================================
   // DATA MANAGEMENT
@@ -273,43 +271,40 @@ const handleLogout = async () => {
     }
   };
 
- // AFTER (with logging):
-const handleDeletePatient = async (patientId) => {
-  if (!window.confirm("Are you sure you want to delete this patient? This action cannot be undone.")) return;
-  
-  try {
-    // Get patient data before deleting
-    const { data: patientToDelete } = await supabase
-      .from("patients")
-      .select("*")
-      .eq("id", patientId)
-      .single();
+ const handleDeletePatient = async (patientId) => {
+    if (!window.confirm("Are you sure you want to delete this patient? This action cannot be undone.")) return;
+    
+    try {
+      const { data: patientToDelete } = await supabase
+        .from("patients")
+        .select("*")
+        .eq("id", patientId)
+        .single();
 
-    const { error } = await supabase
-      .from("patients")
-      .delete()
-      .eq("id", patientId);
+      const { error } = await supabase
+        .from("patients")
+        .delete()
+        .eq("id", patientId);
 
-    if (error) throw error;
+      if (error) throw error;
 
-    // ✅ LOG THE ACTION
-    await logAudit(
-      'DELETE',
-      'patient',
-      patientId,
-      getPatientSnapshot(patientToDelete),
-      null,
-      `Deleted patient: ${patientToDelete.name} (ID: ${patientToDelete.patient_id})`
-    );
+      await logAudit(
+        'DELETE',
+        'patient',
+        patientId,
+        getPatientSnapshot(patientToDelete),
+        null,
+        `Deleted patient: ${patientToDelete.name} (ID: ${patientToDelete.patient_id})`
+      );
 
-    setSelectedPatient(null);
-    loadPatients();
-    alert("Patient deleted successfully");
-  } catch (error) {
-    console.error("Error:", error);
-    alert("Error deleting patient");
-  }
-};
+      setSelectedPatient(null);
+      loadPatients();
+      alert("Patient deleted successfully");
+    } catch (error) {
+      console.error("Error:", error);
+      alert("Error deleting patient");
+    }
+  };
 
   const exportToCSV = () => {
     const headers = ["Name", "Patient ID", "Surgery Type", "Urgency", "Status", "Surgeon", "Wait Days", "Scheduled Date"];
@@ -398,39 +393,42 @@ const handleDeletePatient = async (patientId) => {
     const [error, setError] = useState("");
     const [isLoading, setIsLoading] = useState(false);
 
-    // In LoginModal, after successful login:
-const handleLogin = async (e) => {
-  e.preventDefault();
-  setError("");
-  setIsLoading(true);
+   const handleLogin = async (e) => {
+      e.preventDefault();
+      setError("");
+      setIsLoading(true);
 
-  try {
-    const { error, data } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+      try {
+        const { error, data } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-    if (error) throw error;
+        if (error) throw error;
 
-    // ✅ LOG THE LOGIN
-    setTimeout(async () => {
-      await logAudit(
-        'LOGIN',
-        'auth',
-        data.user.id,
-        null,
-        { email: data.user.email },
-        'User logged in successfully'
-      );
-    }, 1000);
+        setTimeout(async () => {
+          try {
+            await supabase.from('audit_logs').insert([{
+              user_id: data.user.id,
+              user_email: data.user.email,
+              user_name: data.user.user_metadata?.name || data.user.email,
+              action: 'LOGIN',
+              entity_type: 'auth',
+              entity_id: data.user.id,
+              new_data: { email: data.user.email },
+              notes: 'User logged in successfully'
+            }]);
+          } catch (logError) {
+            console.error('Error logging login:', logError);
+          }
+        }, 1000);
 
-  } catch (error) {
-    setError(error.message || "Invalid email or password");
-  } finally {
-    setIsLoading(false);
-  }
-};
-
+      } catch (error) {
+        setError(error.message || "Invalid email or password");
+      } finally {
+        setIsLoading(false);
+      }
+    };
     return (
       <div className="fixed inset-0 bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
@@ -903,55 +901,53 @@ loadPatients();
     );
   };
 
-  const PatientDetailModal = ({ patient, onClose }) => {
+const PatientDetailModal = ({ patient, onClose }) => {
     const [editData, setEditData] = useState(patient);
     const [showQuickActions, setShowQuickActions] = useState(false);
 
-   // AFTER (with logging):
-const handleUpdate = async () => {
-  try {
-    const updateData = {
-      name: editData.name,
-      patient_id: editData.patient_id,
-      surgery_type: editData.surgery_type,
-      urgency: editData.urgency,
-      status: editData.status,
-      surgeon: editData.surgeon,
-      case_information: editData.case_information,
-      anesthesia_approval: editData.anesthesia_approval,
-      iol_diopter: editData.iol_diopter,
-      equipment_needed: editData.equipment_needed,
-      notes: editData.notes,
-      scheduled_date: editData.scheduled_date || null,
-      photo: editData.photo,
-      updated_by: getUserName(),
-      updated_by_id: currentUser.id,
+    const handleUpdate = async () => {
+      try {
+        const updateData = {
+          name: editData.name,
+          patient_id: editData.patient_id,
+          surgery_type: editData.surgery_type,
+          urgency: editData.urgency,
+          status: editData.status,
+          surgeon: editData.surgeon,
+          case_information: editData.case_information,
+          anesthesia_approval: editData.anesthesia_approval,
+          iol_diopter: editData.iol_diopter,
+          equipment_needed: editData.equipment_needed,
+          notes: editData.notes,
+          scheduled_date: editData.scheduled_date || null,
+          photo: editData.photo,
+          updated_by: getUserName(),
+          updated_by_id: currentUser.id,
+        };
+
+        const { error } = await supabase
+          .from("patients")
+          .update(updateData)
+          .eq("id", patient.id);
+
+        if (error) throw error;
+
+        await logAudit(
+          'UPDATE',
+          'patient',
+          patient.id,
+          getPatientSnapshot(patient),
+          getPatientSnapshot(editData),
+          `Updated patient: ${editData.name} (ID: ${editData.patient_id})`
+        );
+
+        onClose();
+        loadPatients();
+      } catch (error) {
+        console.error("Error:", error);
+        alert("Error updating patient");
+      }
     };
-
-    const { error } = await supabase
-      .from("patients")
-      .update(updateData)
-      .eq("id", patient.id);
-
-    if (error) throw error;
-
-    // ✅ LOG THE ACTION
-    await logAudit(
-      'UPDATE',
-      'patient',
-      patient.id,
-      getPatientSnapshot(patient),
-      getPatientSnapshot(editData),
-      `Updated patient: ${editData.name} (ID: ${editData.patient_id})`
-    );
-
-    onClose();
-    loadPatients();
-  } catch (error) {
-    console.error("Error:", error);
-    alert("Error updating patient");
-  }
-};
 
     const handlePhotoUpload = (e) => {
       const file = e.target.files[0];
