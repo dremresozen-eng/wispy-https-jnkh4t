@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Search,
   Plus,
@@ -18,17 +18,18 @@ import {
   Printer,
   BarChart3,
   LogOut,
-  LogIn,
   Users,
   Bell,
-  Activity,
-  TrendingUp,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Shield,
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
-import { Shield, Mail, Lock } from "lucide-react";
+
+// ============================================
+// CONFIGURATION & CONSTANTS
+// ============================================
 
 const SUPABASE_URL = "https://zzifgbkljofyzlxbzypk.supabase.co";
 const SUPABASE_ANON_KEY =
@@ -36,12 +37,58 @@ const SUPABASE_ANON_KEY =
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+const SURGERY_TYPES = [
+  "Phacoemulsification",
+  "Pars Plana Vitrectomy",
+  "Ahmed Glaucoma Valve",
+  "Silicone Oil Removal",
+  "Silicone Oil Injection",
+  "Secondary IOL Implantation",
+];
+
+const URGENCY_LEVELS = {
+  urgent: {
+    label: "Urgent",
+    badge: "bg-gradient-to-r from-red-500 to-red-600",
+    dot: "bg-red-500",
+    borderColor: "#ef4444",
+  },
+  soon: {
+    label: "Soon",
+    badge: "bg-gradient-to-r from-amber-500 to-amber-600",
+    dot: "bg-amber-500",
+    borderColor: "#f59e0b",
+  },
+  routine: {
+    label: "Routine",
+    badge: "bg-gradient-to-r from-emerald-500 to-emerald-600",
+    dot: "bg-emerald-500",
+    borderColor: "#10b981",
+  },
+};
+
+const STATUS_COLORS = {
+  Waiting: { color: "bg-gray-50 border-gray-300", textColor: "text-gray-800" },
+  "Pre-op Prep": { color: "bg-yellow-50 border-yellow-300", textColor: "text-yellow-800" },
+  Ready: { color: "bg-orange-50 border-orange-300", textColor: "text-orange-800" },
+  Scheduled: { color: "bg-red-50 border-red-300", textColor: "text-red-800" },
+  Completed: { color: "bg-green-50 border-green-300", textColor: "text-green-800" },
+};
+
+const STATUS_OPTIONS = ["Waiting", "Pre-op Prep", "Ready", "Scheduled", "Completed"];
+
+const PATIENTS_PER_PAGE = 12;
+
+// ============================================
+// MAIN APP COMPONENT
+// ============================================
+
 export default function App() {
   // Auth State
-  const [session, setSession] = useState(null);  // ← ADD THIS LINE!
+  const [session, setSession] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  
+
   // App State
   const [patients, setPatients] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -53,94 +100,76 @@ export default function App() {
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [currentView, setCurrentView] = useState("waitlist");
   const [showStats, setShowStats] = useState(true);
-  const [showLoginModal, setShowLoginModal] = useState(false);
   const [selectedPatients, setSelectedPatients] = useState([]);
   const [showBulkSchedule, setShowBulkSchedule] = useState(false);
-
-  // PAGINATION STATE
   const [currentPage, setCurrentPage] = useState(1);
-  const [patientsPerPage] = useState(12);
 
-  const surgeryTypes = [
-    "Phacoemulsification",
-    "Pars Plana Vitrectomy",
-    "Ahmed Glaucoma Valve",
-    "Silicone Oil Removal",
-    "Silicone Oil Injection",
-    "Secondary IOL Implantation",
-  ];
+  // ============================================
+  // HELPER FUNCTIONS
+  // ============================================
 
-  const urgencyLevels = {
-    urgent: {
-      label: "Urgent",
-      badge: "bg-gradient-to-r from-red-500 to-red-600",
-      dot: "bg-red-500",
-      borderColor: "#ef4444",
-    },
-    soon: {
-      label: "Soon",
-      badge: "bg-gradient-to-r from-amber-500 to-amber-600",
-      dot: "bg-amber-500",
-      borderColor: "#f59e0b",
-    },
-    routine: {
-      label: "Routine",
-      badge: "bg-gradient-to-r from-emerald-500 to-emerald-600",
-      dot: "bg-emerald-500",
-      borderColor: "#10b981",
-    },
+  const getUserName = () => currentUser?.user_metadata?.name || currentUser?.email || "User";
+  const getUserRole = () => currentUser?.user_metadata?.role || "user";
+
+  const calculateWaitDays = (addedDate) => {
+    const now = new Date();
+    const added = new Date(addedDate);
+    const diffTime = Math.abs(now - added);
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  const statusColors = {
-    "Waiting": {
-      color: "bg-gray-50 border-gray-300",
-      textColor: "text-gray-800",
-    },
-    "Pre-op Prep": {
-      color: "bg-yellow-50 border-yellow-300",
-      textColor: "text-yellow-800",
-    },
-    "Ready": {
-      color: "bg-orange-50 border-orange-300",
-      textColor: "text-orange-800",
-    },
-    "Scheduled": {
-      color: "bg-red-50 border-red-300",
-      textColor: "text-red-800",
-    },
-    "Completed": {
-      color: "bg-green-50 border-green-300",
-      textColor: "text-green-800",
-    },
+  const sortPatients = (patientList) => {
+    return [...patientList].sort((a, b) => {
+      if (a.urgency !== b.urgency) {
+        const urgencyOrder = { urgent: 0, soon: 1, routine: 2 };
+        return urgencyOrder[a.urgency] - urgencyOrder[b.urgency];
+      }
+      return calculateWaitDays(b.added_date) - calculateWaitDays(a.added_date);
+    });
   };
 
-  const statusOptions = [
-    "Waiting",
-    "Pre-op Prep",
-    "Ready",
-    "Scheduled",
-    "Completed",
-  ];
+  // ============================================
+  // AUTH MANAGEMENT
+  // ============================================
 
-  // Check for logged in user
- useEffect(() => {
-checkAuth();
-const { data: authListener } = supabase.auth.onAuthStateChange(
-async (event, session) => {
-setSession(session);
-setCurrentUser(session?.user ?? null);
-}
-);
-return () => {
-authListener?.subscription.unsubscribe();
-};
-}, []);
-const checkAuth = async () => {
-const { data: { session } } = await supabase.auth.getSession();
-setSession(session);
-setCurrentUser(session?.user ?? null);
-setLoading(false);
-};
+  useEffect(() => {
+    checkAuth();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setSession(session);
+      setCurrentUser(session?.user ?? null);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const checkAuth = async () => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      setSession(session);
+      setCurrentUser(session?.user ?? null);
+    } catch (error) {
+      console.error("Error checking auth:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    if (window.confirm("Are you sure you want to logout?")) {
+      await supabase.auth.signOut();
+    }
+  };
+
+  // ============================================
+  // DATA MANAGEMENT
+  // ============================================
 
   useEffect(() => {
     if (currentUser) {
@@ -148,13 +177,9 @@ setLoading(false);
 
       const channel = supabase
         .channel("patients-changes")
-        .on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: "patients" },
-          () => {
-            loadPatients();
-          }
-        )
+        .on("postgres_changes", { event: "*", schema: "public", table: "patients" }, () => {
+          loadPatients();
+        })
         .subscribe();
 
       return () => {
@@ -175,178 +200,15 @@ setLoading(false);
     } catch (error) {
       console.error("Error loading patients:", error);
     }
-    setLoading(false);
   };
 
-  const calculateWaitDays = (addedDate) => {
-    const now = new Date();
-    const added = new Date(addedDate);
-    const diffTime = Math.abs(now - added);
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  };
-
-  const sortPatients = (patientList) => {
-    return [...patientList].sort((a, b) => {
-      if (a.urgency !== b.urgency) {
-        const urgencyOrder = { urgent: 0, soon: 1, routine: 2 };
-        return urgencyOrder[a.urgency] - urgencyOrder[b.urgency];
-      }
-      return calculateWaitDays(b.added_date) - calculateWaitDays(a.added_date);
-    });
-  };
-
-  const filteredPatients = sortPatients(
-    patients.filter((patient) => {
-      const matchesSearch =
-        patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        patient.patient_id.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesUrgency =
-        filterUrgency === "all" || patient.urgency === filterUrgency;
-      const matchesStatus =
-        filterStatus === "all" || patient.status === filterStatus;
-      const matchesSurgeon =
-        filterSurgeon === "all" || patient.surgeon === filterSurgeon;
-      const matchesSurgeryType =
-        filterSurgeryType === "all" || patient.surgery_type === filterSurgeryType;
-      return matchesSearch && matchesUrgency && matchesStatus && matchesSurgeon && matchesSurgeryType;
-    })
-  );
-
-  // PAGINATION LOGIC
-  const indexOfLastPatient = currentPage * patientsPerPage;
-  const indexOfFirstPatient = indexOfLastPatient - patientsPerPage;
-  const currentPatients = filteredPatients.slice(indexOfFirstPatient, indexOfLastPatient);
-  const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
-
-  // Reset to page 1 when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, filterUrgency, filterStatus, filterSurgeon, filterSurgeryType]);
-
-  const scheduledPatients = patients
-    .filter((p) => p.scheduled_date)
-    .sort((a, b) => new Date(a.scheduled_date) - new Date(b.scheduled_date));
-
-  // Get unique surgeons for filter
-  const uniqueSurgeons = [...new Set(patients.map(p => p.surgeon).filter(Boolean))];
-
-  // Statistics calculations
-  const stats = {
-    total: patients.length,
-    waiting: patients.filter(p => p.status === "Waiting").length,
-    urgent: patients.filter(p => p.urgency === "urgent" && p.status !== "Completed").length,
-    scheduled: patients.filter(p => p.status === "Scheduled").length,
-    completed: patients.filter(p => p.status === "Completed").length,
-    avgWaitTime: patients.length > 0 
-      ? Math.round(patients.reduce((sum, p) => sum + calculateWaitDays(p.added_date), 0) / patients.length)
-      : 0,
-    longWait: patients.filter(p => calculateWaitDays(p.added_date) > 30 && p.status !== "Completed").length,
-  };
-
-  // SECURE LOGIN MODAL
-  const LoginModal = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setError('');
-    setIsLoading(true);
-
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      
-      if (error) throw error;
-    } catch (error) {
-      setError(error.message || 'Invalid email or password');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
-        <div className="text-center mb-8">
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Shield className="w-10 h-10 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-800">Secure Login</h1>
-        </div>
-
-        {error && (
-          <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3 mb-4">
-            <p className="text-red-800 text-sm">{error}</p>
-          </div>
-        )}
-
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Email Address
-            </label>
-            <input
-              type="email"
-              required
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 outline-none"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Password
-            </label>
-            <input
-              type="password"
-              required
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 outline-none"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-semibold disabled:opacity-50"
-          >
-            {isLoading ? 'Signing in...' : 'Sign In Securely'}
-          </button>
-        </form>
-
-        <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-          <p className="text-xs text-blue-800 text-center">
-            Secured with Supabase Auth
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-};
-  const handleLogout = async () => {
-if (window.confirm("Are you sure you want to logout?")) {
-await supabase.auth.signOut();
-}
-};
-
-  // Delete patient function
   const handleDeletePatient = async (patientId) => {
     if (!window.confirm("Are you sure you want to delete this patient? This action cannot be undone.")) {
       return;
     }
 
     try {
-      const { error } = await supabase
-        .from("patients")
-        .delete()
-        .eq("id", patientId);
+      const { error } = await supabase.from("patients").delete().eq("id", patientId);
 
       if (error) throw error;
       setSelectedPatient(null);
@@ -358,26 +220,9 @@ await supabase.auth.signOut();
     }
   };
 
-  // Quick status update
-  const quickStatusUpdate = async (patient, newStatus) => {
-    try {
-      const { error } = await supabase
-        .from("patients")
-        .update({ status: newStatus })
-        .eq("id", patient.id);
-
-      if (error) throw error;
-      loadPatients();
-    } catch (error) {
-      console.error("Error:", error);
-      alert("Error updating status");
-    }
-  };
-
-  // Export to CSV
   const exportToCSV = () => {
     const headers = ["Name", "Patient ID", "Surgery Type", "Urgency", "Status", "Surgeon", "Wait Days", "Scheduled Date"];
-    const rows = filteredPatients.map(p => [
+    const rows = filteredPatients.map((p) => [
       p.name,
       p.patient_id,
       p.surgery_type,
@@ -385,85 +230,161 @@ await supabase.auth.signOut();
       p.status,
       p.surgeon || "",
       calculateWaitDays(p.added_date),
-      p.scheduled_date || ""
+      p.scheduled_date || "",
     ]);
 
-    const csv = [headers, ...rows].map(row => row.join(",")).join("\n");
+    const csv = [headers, ...rows].map((row) => row.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `waitlist_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `waitlist_${new Date().toISOString().split("T")[0]}.csv`;
     a.click();
+    URL.revokeObjectURL(url);
   };
 
-  // Print function
-  const handlePrint = () => {
-    window.print();
-  };
+  // ============================================
+  // COMPUTED VALUES (useMemo for performance)
+  // ============================================
 
-  // Bulk schedule
-  const BulkScheduleModal = () => {
-    const [bulkDate, setBulkDate] = useState("");
+  const filteredPatients = useMemo(() => {
+    const filtered = patients.filter((patient) => {
+      const matchesSearch =
+        patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        patient.patient_id.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesUrgency = filterUrgency === "all" || patient.urgency === filterUrgency;
+      const matchesStatus = filterStatus === "all" || patient.status === filterStatus;
+      const matchesSurgeon = filterSurgeon === "all" || patient.surgeon === filterSurgeon;
+      const matchesSurgeryType = filterSurgeryType === "all" || patient.surgery_type === filterSurgeryType;
+      return matchesSearch && matchesUrgency && matchesStatus && matchesSurgeon && matchesSurgeryType;
+    });
+    return sortPatients(filtered);
+  }, [patients, searchTerm, filterUrgency, filterStatus, filterSurgeon, filterSurgeryType]);
 
-    const handleBulkSchedule = async () => {
-      if (!bulkDate) {
-        alert("Please select a date");
-        return;
-      }
+  const uniqueSurgeons = useMemo(() => {
+    return [...new Set(patients.map((p) => p.surgeon).filter(Boolean))];
+  }, [patients]);
+
+  const scheduledPatients = useMemo(() => {
+    return patients.filter((p) => p.scheduled_date).sort((a, b) => new Date(a.scheduled_date) - new Date(b.scheduled_date));
+  }, [patients]);
+
+  const stats = useMemo(() => {
+    return {
+      total: patients.length,
+      waiting: patients.filter((p) => p.status === "Waiting").length,
+      urgent: patients.filter((p) => p.urgency === "urgent" && p.status !== "Completed").length,
+      scheduled: patients.filter((p) => p.status === "Scheduled").length,
+      completed: patients.filter((p) => p.status === "Completed").length,
+      avgWaitTime:
+        patients.length > 0
+          ? Math.round(patients.reduce((sum, p) => sum + calculateWaitDays(p.added_date), 0) / patients.length)
+          : 0,
+      longWait: patients.filter((p) => calculateWaitDays(p.added_date) > 30 && p.status !== "Completed").length,
+    };
+  }, [patients]);
+
+  // ============================================
+  // PAGINATION
+  // ============================================
+
+  const totalPages = Math.ceil(filteredPatients.length / PATIENTS_PER_PAGE);
+  const indexOfLastPatient = currentPage * PATIENTS_PER_PAGE;
+  const indexOfFirstPatient = indexOfLastPatient - PATIENTS_PER_PAGE;
+  const currentPatients = filteredPatients.slice(indexOfFirstPatient, indexOfLastPatient);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterUrgency, filterStatus, filterSurgeon, filterSurgeryType]);
+
+  // ============================================
+  // SUB-COMPONENTS
+  // ============================================
+
+  const LoginModal = () => {
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [error, setError] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleLogin = async (e) => {
+      e.preventDefault();
+      setError("");
+      setIsLoading(true);
 
       try {
-        for (const patientId of selectedPatients) {
-          await supabase
-            .from("patients")
-            .update({ scheduled_date: bulkDate, status: "Scheduled" })
-            .eq("id", patientId);
-        }
-        setShowBulkSchedule(false);
-        setSelectedPatients([]);
-        loadPatients();
-        alert(`${selectedPatients.length} patients scheduled for ${bulkDate}`);
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (error) throw error;
       } catch (error) {
-        console.error("Error:", error);
-        alert("Error scheduling patients");
+        setError(error.message || "Invalid email or password");
+      } finally {
+        setIsLoading(false);
       }
     };
 
     return (
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-          <h3 className="text-xl font-bold mb-4">Bulk Schedule {selectedPatients.length} Patients</h3>
-          <div className="mb-4">
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Select Date
-            </label>
-            <input
-              type="date"
-              className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-              value={bulkDate}
-              onChange={(e) => setBulkDate(e.target.value)}
-            />
+      <div className="fixed inset-0 bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
+          <div className="text-center mb-8">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Shield className="w-10 h-10 text-white" />
+            </div>
+            <h1 className="text-3xl font-bold text-gray-800">Secure Login</h1>
+            <p className="text-gray-600 mt-2">Surgical Waitlist Manager v0.4</p>
           </div>
-          <div className="flex gap-3">
+
+          {error && (
+            <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3 mb-4">
+              <p className="text-red-800 text-sm">{error}</p>
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Email Address</label>
+              <input
+                type="email"
+                required
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 outline-none"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Password</label>
+              <input
+                type="password"
+                required
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 outline-none"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
+
             <button
-              onClick={() => setShowBulkSchedule(false)}
-              className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg hover:bg-gray-50 font-semibold"
+              type="submit"
+              disabled={isLoading}
+              className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-semibold disabled:opacity-50"
             >
-              Cancel
+              {isLoading ? "Signing in..." : "Sign In Securely"}
             </button>
-            <button
-              onClick={handleBulkSchedule}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
-            >
-              Schedule All
-            </button>
+          </form>
+
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+            <p className="text-xs text-blue-800 text-center">🔒 Secured with Supabase Auth</p>
           </div>
         </div>
       </div>
     );
   };
 
-  // Statistics Dashboard
   const StatsDashboard = () => (
     <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-6 mb-6">
       <div className="flex items-center justify-between mb-4">
@@ -471,10 +392,7 @@ await supabase.auth.signOut();
           <BarChart3 className="w-6 h-6 text-blue-600" />
           Dashboard Overview
         </h2>
-        <button
-          onClick={() => setShowStats(!showStats)}
-          className="text-sm text-gray-600 hover:text-gray-800"
-        >
+        <button onClick={() => setShowStats(!showStats)} className="text-sm text-gray-600 hover:text-gray-800">
           {showStats ? "Hide" : "Show"}
         </button>
       </div>
@@ -526,19 +444,16 @@ await supabase.auth.signOut();
     </div>
   );
 
-  // Pagination Component
   const Pagination = () => {
     if (totalPages <= 1) return null;
 
     return (
       <div className="flex items-center justify-center gap-2 mt-6 mb-4">
         <button
-          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+          onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
           disabled={currentPage === 1}
           className={`p-2 rounded-lg border-2 ${
-            currentPage === 1
-              ? 'border-gray-200 text-gray-400 cursor-not-allowed'
-              : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+            currentPage === 1 ? "border-gray-200 text-gray-400 cursor-not-allowed" : "border-gray-300 text-gray-700 hover:bg-gray-50"
           }`}
         >
           <ChevronLeft className="w-5 h-5" />
@@ -547,7 +462,6 @@ await supabase.auth.signOut();
         <div className="flex gap-2">
           {[...Array(totalPages)].map((_, index) => {
             const pageNumber = index + 1;
-            // Show first page, last page, current page, and pages around current
             if (
               pageNumber === 1 ||
               pageNumber === totalPages ||
@@ -559,30 +473,31 @@ await supabase.auth.signOut();
                   onClick={() => setCurrentPage(pageNumber)}
                   className={`w-10 h-10 rounded-lg border-2 font-semibold ${
                     currentPage === pageNumber
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "border-gray-300 text-gray-700 hover:bg-gray-50"
                   }`}
                 >
                   {pageNumber}
                 </button>
               );
-            } else if (
-              pageNumber === currentPage - 2 ||
-              pageNumber === currentPage + 2
-            ) {
-              return <span key={pageNumber} className="w-10 h-10 flex items-center justify-center text-gray-400">...</span>;
+            } else if (pageNumber === currentPage - 2 || pageNumber === currentPage + 2) {
+              return (
+                <span key={pageNumber} className="w-10 h-10 flex items-center justify-center text-gray-400">
+                  ...
+                </span>
+              );
             }
             return null;
           })}
         </div>
 
         <button
-          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+          onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
           disabled={currentPage === totalPages}
           className={`p-2 rounded-lg border-2 ${
             currentPage === totalPages
-              ? 'border-gray-200 text-gray-400 cursor-not-allowed'
-              : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+              ? "border-gray-200 text-gray-400 cursor-not-allowed"
+              : "border-gray-300 text-gray-700 hover:bg-gray-50"
           }`}
         >
           <ChevronRight className="w-5 h-5" />
@@ -596,11 +511,63 @@ await supabase.auth.signOut();
     );
   };
 
+  const BulkScheduleModal = () => {
+    const [bulkDate, setBulkDate] = useState("");
+
+    const handleBulkSchedule = async () => {
+      if (!bulkDate) {
+        alert("Please select a date");
+        return;
+      }
+
+      try {
+        for (const patientId of selectedPatients) {
+          await supabase.from("patients").update({ scheduled_date: bulkDate, status: "Scheduled" }).eq("id", patientId);
+        }
+        setShowBulkSchedule(false);
+        setSelectedPatients([]);
+        loadPatients();
+        alert(`${selectedPatients.length} patients scheduled for ${bulkDate}`);
+      } catch (error) {
+        console.error("Error:", error);
+        alert("Error scheduling patients");
+      }
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+          <h3 className="text-xl font-bold mb-4">Bulk Schedule {selectedPatients.length} Patients</h3>
+          <div className="mb-4">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Select Date</label>
+            <input
+              type="date"
+              className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+              value={bulkDate}
+              onChange={(e) => setBulkDate(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowBulkSchedule(false)}
+              className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg hover:bg-gray-50 font-semibold"
+            >
+              Cancel
+            </button>
+            <button onClick={handleBulkSchedule} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">
+              Schedule All
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const AddPatientModal = () => {
     const [formData, setFormData] = useState({
       name: "",
       patient_id: "",
-      surgery_type: surgeryTypes[0],
+      surgery_type: SURGERY_TYPES[0],
       urgency: "routine",
       status: "Waiting",
       surgeon: "",
@@ -630,29 +597,16 @@ await supabase.auth.signOut();
         }
 
         if (existingPatients && existingPatients.length > 0) {
-          alert(
-            "A patient with this ID already exists! Please use a different Patient ID."
-          );
+          alert("A patient with this ID already exists! Please use a different Patient ID.");
           return;
         }
 
         const { error } = await supabase.from("patients").insert([
           {
+            ...formData,
             patient_key: `patient-${Date.now()}`,
-            name: formData.name,
-            patient_id: formData.patient_id,
-            surgery_type: formData.surgery_type,
-            urgency: formData.urgency,
-            status: formData.status,
-            surgeon: formData.surgeon,
-            case_information: formData.case_information,
-            anesthesia_approval: formData.anesthesia_approval,
-            iol_diopter: formData.iol_diopter,
-            equipment_needed: formData.equipment_needed,
-            notes: formData.notes,
+            added_by: getUserName(), // ✅ FIXED: Now uses helper function
             scheduled_date: formData.scheduled_date || null,
-            photo: formData.photo,
-            added_by: currentUser.name,
           },
         ]);
 
@@ -684,10 +638,7 @@ await supabase.auth.signOut();
               <Plus className="w-7 h-7" />
               Add New Patient
             </h2>
-            <button
-              onClick={() => setShowAddModal(false)}
-              className="hover:bg-white/20 p-2 rounded-lg transition-colors"
-            >
+            <button onClick={() => setShowAddModal(false)} className="hover:bg-white/20 p-2 rounded-lg transition-colors">
               <X className="w-6 h-6" />
             </button>
           </div>
@@ -703,9 +654,7 @@ await supabase.auth.signOut();
                   className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                   placeholder="Enter patient name"
                   value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 />
               </div>
               <div>
@@ -717,41 +666,31 @@ await supabase.auth.signOut();
                   className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                   placeholder="Enter patient ID"
                   value={formData.patient_id}
-                  onChange={(e) =>
-                    setFormData({ ...formData, patient_id: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, patient_id: e.target.value })}
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Case Information
-              </label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Case Information</label>
               <textarea
                 className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none resize-none"
                 placeholder="General case information..."
                 rows="4"
                 value={formData.case_information}
-                onChange={(e) =>
-                  setFormData({ ...formData, case_information: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, case_information: e.target.value })}
               />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Surgery Type
-                </label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Surgery Type</label>
                 <select
                   className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none bg-white"
                   value={formData.surgery_type}
-                  onChange={(e) =>
-                    setFormData({ ...formData, surgery_type: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, surgery_type: e.target.value })}
                 >
-                  {surgeryTypes.map((type) => (
+                  {SURGERY_TYPES.map((type) => (
                     <option key={type} value={type}>
                       {type}
                     </option>
@@ -759,15 +698,11 @@ await supabase.auth.signOut();
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Urgency Level
-                </label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Urgency Level</label>
                 <select
                   className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none bg-white"
                   value={formData.urgency}
-                  onChange={(e) =>
-                    setFormData({ ...formData, urgency: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, urgency: e.target.value })}
                 >
                   <option value="routine">Routine</option>
                   <option value="soon">Soon</option>
@@ -777,17 +712,13 @@ await supabase.auth.signOut();
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Surgeon
-              </label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Surgeon</label>
               <input
                 type="text"
                 className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                 placeholder="Surgeon name"
                 value={formData.surgeon}
-                onChange={(e) =>
-                  setFormData({ ...formData, surgeon: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, surgeon: e.target.value })}
               />
             </div>
 
@@ -796,47 +727,32 @@ await supabase.auth.signOut();
                 <FileText className="w-5 h-5 text-blue-600" />
                 Pre-Op Requirements
               </h3>
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      IOL Diopter
-                    </label>
-                    <input
-                      type="text"
-                      className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                      placeholder="e.g., +22.0"
-                      value={formData.iol_diopter}
-                      onChange={(e) =>
-                        setFormData({ ...formData, iol_diopter: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Equipment Needed
-                    </label>
-                    <input
-                      type="text"
-                      className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                      placeholder="Special equipment"
-                      value={formData.equipment_needed}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          equipment_needed: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">IOL Diopter</label>
+                  <input
+                    type="text"
+                    className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                    placeholder="e.g., +22.0"
+                    value={formData.iol_diopter}
+                    onChange={(e) => setFormData({ ...formData, iol_diopter: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Equipment Needed</label>
+                  <input
+                    type="text"
+                    className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                    placeholder="Special equipment"
+                    value={formData.equipment_needed}
+                    onChange={(e) => setFormData({ ...formData, equipment_needed: e.target.value })}
+                  />
                 </div>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Upload Document/Photo
-              </label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Upload Document/Photo</label>
               <input
                 type="file"
                 accept="image/*"
@@ -920,25 +836,17 @@ await supabase.auth.signOut();
                 <p className="text-blue-100 text-lg">ID: {editData.patient_id}</p>
               </div>
               <div className="flex items-center gap-3">
-                <span
-                  className={`px-4 py-2 rounded-full text-sm font-bold shadow-lg ${
-                    urgencyLevels[editData.urgency].badge
-                  } text-white`}
-                >
-                  {urgencyLevels[editData.urgency].label}
+                <span className={`px-4 py-2 rounded-full text-sm font-bold shadow-lg ${URGENCY_LEVELS[editData.urgency].badge} text-white`}>
+                  {URGENCY_LEVELS[editData.urgency].label}
                 </span>
 
-                {/* Quick Actions Dropdown */}
                 <div className="relative">
-                  <button
-                    onClick={() => setShowQuickActions(!showQuickActions)}
-                    className="hover:bg-white/20 p-2 rounded-lg transition-colors"
-                  >
+                  <button onClick={() => setShowQuickActions(!showQuickActions)} className="hover:bg-white/20 p-2 rounded-lg transition-colors">
                     <ChevronDown className="w-6 h-6" />
                   </button>
                   {showQuickActions && (
                     <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border-2 border-gray-200 overflow-hidden z-10">
-                      {statusOptions.map(status => (
+                      {STATUS_OPTIONS.map((status) => (
                         <button
                           key={status}
                           onClick={() => {
@@ -954,10 +862,7 @@ await supabase.auth.signOut();
                   )}
                 </div>
 
-                <button
-                  onClick={onClose}
-                  className="hover:bg-white/20 p-2 rounded-lg transition-colors"
-                >
+                <button onClick={onClose} className="hover:bg-white/20 p-2 rounded-lg transition-colors">
                   <X className="w-6 h-6" />
                 </button>
               </div>
@@ -965,7 +870,6 @@ await supabase.auth.signOut();
           </div>
 
           <div className="p-6 space-y-6">
-            {/* Alert for long wait */}
             {calculateWaitDays(editData.added_date) > 30 && editData.status !== "Completed" && (
               <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 flex items-center gap-3">
                 <Bell className="w-5 h-5 text-amber-600" />
@@ -977,45 +881,33 @@ await supabase.auth.signOut();
             )}
 
             <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
-              <label className="block text-sm font-bold text-blue-900 mb-2">
-                Case Information
-              </label>
+              <label className="block text-sm font-bold text-blue-900 mb-2">Case Information</label>
               <textarea
                 className="w-full border-2 border-blue-300 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none resize-none bg-white"
                 rows="4"
                 value={editData.case_information || ""}
-                onChange={(e) =>
-                  setEditData({ ...editData, case_information: e.target.value })
-                }
+                onChange={(e) => setEditData({ ...editData, case_information: e.target.value })}
               />
             </div>
 
             {editData.photo && (
               <div className="bg-gray-50 rounded-xl p-4">
-                <label className="block text-sm font-bold text-gray-700 mb-3">
-                  Scanned Document
-                </label>
-                <img
-                  src={editData.photo}
-                  alt="Document"
-                  className="max-w-full rounded-lg border-2 border-gray-300 shadow-md"
-                />
+                <label className="block text-sm font-bold text-gray-700 mb-3">Scanned Document</label>
+                <img src={editData.photo} alt="Document" className="max-w-full rounded-lg border-2 border-gray-300 shadow-md" />
               </div>
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Surgery Type
-                </label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Surgery Type</label>
                 <select
                   className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none bg-white"
                   value={editData.surgery_type}
-                  onChange={(e) =>
-                    setEditData({ ...editData, surgery_type: e.target.value })
-                  }
+                  onChange={(e) => setEditData({ ...editData, surgery_type: e.target.value })}
                 >
-                  {surgeryTypes.map((type) => (
+                  {SURGERY_TYPES.map((type) => (
                     <option key={type} value={type}>
                       {type}
                     </option>
@@ -1023,17 +915,13 @@ await supabase.auth.signOut();
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Status
-                </label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
                 <select
                   className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none bg-white"
                   value={editData.status}
-                  onChange={(e) =>
-                    setEditData({ ...editData, status: e.target.value })
-                  }
+                  onChange={(e) => setEditData({ ...editData, status: e.target.value })}
                 >
-                  {statusOptions.map((status) => (
+                  {STATUS_OPTIONS.map((status) => (
                     <option key={status} value={status}>
                       {status}
                     </option>
@@ -1041,15 +929,11 @@ await supabase.auth.signOut();
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Urgency
-                </label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Urgency</label>
                 <select
                   className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none bg-white"
                   value={editData.urgency}
-                  onChange={(e) =>
-                    setEditData({ ...editData, urgency: e.target.value })
-                  }
+                  onChange={(e) => setEditData({ ...editData, urgency: e.target.value })}
                 >
                   <option value="routine">Routine</option>
                   <option value="soon">Soon</option>
@@ -1057,40 +941,28 @@ await supabase.auth.signOut();
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Surgeon
-                </label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Surgeon</label>
                 <input
                   type="text"
                   className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                   value={editData.surgeon || ""}
-                  onChange={(e) =>
-                    setEditData({ ...editData, surgeon: e.target.value })
-                  }
+                  onChange={(e) => setEditData({ ...editData, surgeon: e.target.value })}
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Scheduled Date
-                </label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Scheduled Date</label>
                 <input
                   type="date"
                   className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                   value={editData.scheduled_date || ""}
-                  onChange={(e) =>
-                    setEditData({ ...editData, scheduled_date: e.target.value })
-                  }
+                  onChange={(e) => setEditData({ ...editData, scheduled_date: e.target.value })}
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Wait Time
-                </label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Wait Time</label>
                 <div className="flex items-center gap-2 px-4 py-3 bg-gray-100 rounded-lg border-2 border-gray-200">
                   <Clock className="w-5 h-5 text-gray-600" />
-                  <span className="font-bold text-gray-700">
-                    {calculateWaitDays(editData.added_date)} days
-                  </span>
+                  <span className="font-bold text-gray-700">{calculateWaitDays(editData.added_date)} days</span>
                 </div>
               </div>
             </div>
@@ -1113,28 +985,20 @@ await supabase.auth.signOut();
                     }
                     className="w-6 h-6 rounded border-gray-300"
                   />
-                  <span className="font-semibold text-gray-700">
-                    Anesthesia Approval
-                  </span>
+                  <span className="font-semibold text-gray-700">Anesthesia Approval</span>
                 </label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      IOL Diopter
-                    </label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">IOL Diopter</label>
                     <input
                       type="text"
                       className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                       value={editData.iol_diopter || ""}
-                      onChange={(e) =>
-                        setEditData({ ...editData, iol_diopter: e.target.value })
-                      }
+                      onChange={(e) => setEditData({ ...editData, iol_diopter: e.target.value })}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Equipment Needed
-                    </label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Equipment Needed</label>
                     <input
                       type="text"
                       className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
@@ -1152,24 +1016,18 @@ await supabase.auth.signOut();
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Notes
-              </label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
               <textarea
                 className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none resize-none"
                 rows="4"
                 placeholder="Additional notes..."
                 value={editData.notes || ""}
-                onChange={(e) =>
-                  setEditData({ ...editData, notes: e.target.value })
-                }
+                onChange={(e) => setEditData({ ...editData, notes: e.target.value })}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Update Photo/Document
-              </label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Update Photo/Document</label>
               <input
                 type="file"
                 accept="image/*"
@@ -1187,10 +1045,7 @@ await supabase.auth.signOut();
                 Delete Patient
               </button>
               <div className="flex gap-3">
-                <button
-                  onClick={onClose}
-                  className="px-6 py-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 font-semibold transition-colors"
-                >
+                <button onClick={onClose} className="px-6 py-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 font-semibold transition-colors">
                   Cancel
                 </button>
                 <button
@@ -1220,16 +1075,11 @@ await supabase.auth.signOut();
         {Object.keys(groupedByDate).length === 0 ? (
           <div className="text-center py-20">
             <CalendarDays className="w-20 h-20 text-gray-300 mx-auto mb-4" />
-            <p className="text-xl text-gray-500 font-medium">
-              No surgeries scheduled yet
-            </p>
+            <p className="text-xl text-gray-500 font-medium">No surgeries scheduled yet</p>
           </div>
         ) : (
           Object.entries(groupedByDate).map(([date, pts]) => (
-            <div
-              key={date}
-              className="bg-white rounded-2xl shadow-lg border-2 border-gray-200 overflow-hidden"
-            >
+            <div key={date} className="bg-white rounded-2xl shadow-lg border-2 border-gray-200 overflow-hidden">
               <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-5">
                 <h3 className="text-xl font-bold flex items-center gap-3">
                   <Calendar className="w-6 h-6" />
@@ -1247,27 +1097,19 @@ await supabase.auth.signOut();
                   <div
                     key={patient.id}
                     onClick={() => setSelectedPatient(patient)}
-                    className={`border-l-4 p-5 cursor-pointer hover:shadow-lg transition-all rounded-lg ${
-                      statusColors[patient.status].color
-                    }`}
-                    style={{ borderLeftColor: urgencyLevels[patient.urgency].borderColor }}
+                    className={`border-l-4 p-5 cursor-pointer hover:shadow-lg transition-all rounded-lg ${STATUS_COLORS[patient.status].color}`}
+                    style={{ borderLeftColor: URGENCY_LEVELS[patient.urgency].borderColor }}
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
-                          <h4 className="font-bold text-xl text-gray-800">
-                            {patient.name}
-                          </h4>
+                          <h4 className="font-bold text-xl text-gray-800">{patient.name}</h4>
                           <span
-                            className={`w-3 h-3 rounded-full ${
-                              urgencyLevels[patient.urgency].dot
-                            }`}
-                            title={urgencyLevels[patient.urgency].label}
+                            className={`w-3 h-3 rounded-full ${URGENCY_LEVELS[patient.urgency].dot}`}
+                            title={URGENCY_LEVELS[patient.urgency].label}
                           />
                         </div>
-                        <p className="text-sm text-gray-600 mb-3">
-                          ID: {patient.patient_id}
-                        </p>
+                        <p className="text-sm text-gray-600 mb-3">ID: {patient.patient_id}</p>
                         <div className="flex flex-wrap gap-4 text-sm">
                           <span className="flex items-center gap-2 text-gray-700">
                             <Stethoscope className="w-4 h-4" />
@@ -1281,12 +1123,8 @@ await supabase.auth.signOut();
                           )}
                         </div>
                       </div>
-                      <span
-                        className={`px-4 py-2 rounded-full text-sm font-bold ${
-                          urgencyLevels[patient.urgency].badge
-                        } text-white shadow-md`}
-                      >
-                        {urgencyLevels[patient.urgency].label}
+                      <span className={`px-4 py-2 rounded-full text-sm font-bold ${URGENCY_LEVELS[patient.urgency].badge} text-white shadow-md`}>
+                        {URGENCY_LEVELS[patient.urgency].label}
                       </span>
                     </div>
                   </div>
@@ -1299,11 +1137,15 @@ await supabase.auth.signOut();
     );
   };
 
+  // ============================================
+  // RENDER
+  // ============================================
+
   if (!currentUser) {
     return <LoginModal />;
   }
 
-  if (loading)
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gradient-to-br from-blue-50 to-blue-100">
         <div className="text-center">
@@ -1312,6 +1154,7 @@ await supabase.auth.signOut();
         </div>
       </div>
     );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-4 md:p-6">
@@ -1324,11 +1167,10 @@ await supabase.auth.signOut();
                 <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-3 rounded-xl">
                   <Stethoscope className="text-white w-8 h-8" />
                 </div>
-                Surgical Waitlist Manager
                 Surgical Waitlist Manager v0.4
               </h1>
               <p className="text-gray-600 mt-2 ml-1">
-                Logged in as: <strong>{currentUser.name}</strong> ({currentUser.role})
+                Logged in as: <strong>{getUserName()}</strong> <span className="text-gray-500">({getUserRole()})</span>
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -1362,7 +1204,7 @@ await supabase.auth.signOut();
                 Export
               </button>
               <button
-                onClick={handlePrint}
+                onClick={() => window.print()}
                 className="flex items-center gap-2 bg-gray-600 text-white px-5 py-3 rounded-xl hover:bg-gray-700 font-semibold shadow-lg transition-all"
               >
                 <Printer className="w-5 h-5" />
@@ -1423,7 +1265,7 @@ await supabase.auth.signOut();
                   onChange={(e) => setFilterStatus(e.target.value)}
                 >
                   <option value="all">All Statuses</option>
-                  {statusOptions.map((s) => (
+                  {STATUS_OPTIONS.map((s) => (
                     <option key={s} value={s}>
                       {s}
                     </option>
@@ -1449,7 +1291,7 @@ await supabase.auth.signOut();
                   onChange={(e) => setFilterSurgeryType(e.target.value)}
                 >
                   <option value="all">All Surgery Types</option>
-                  {surgeryTypes.map((type) => (
+                  {SURGERY_TYPES.map((type) => (
                     <option key={type} value={type}>
                       {type}
                     </option>
@@ -1471,10 +1313,9 @@ await supabase.auth.signOut();
                 <div
                   key={patient.id}
                   className={`rounded-2xl border-2 p-6 cursor-pointer hover:shadow-2xl transition-all transform hover:-translate-y-1 ${
-                    statusColors[patient.status].color
-                  } ${selectedPatients.includes(patient.id) ? 'ring-4 ring-blue-500' : ''}`}
+                    STATUS_COLORS[patient.status].color
+                  } ${selectedPatients.includes(patient.id) ? "ring-4 ring-blue-500" : ""}`}
                 >
-                  {/* Selection checkbox */}
                   <div className="flex items-center justify-between mb-3">
                     <input
                       type="checkbox"
@@ -1482,29 +1323,20 @@ await supabase.auth.signOut();
                       onChange={(e) => {
                         e.stopPropagation();
                         if (selectedPatients.includes(patient.id)) {
-                          setSelectedPatients(selectedPatients.filter(id => id !== patient.id));
+                          setSelectedPatients(selectedPatients.filter((id) => id !== patient.id));
                         } else {
                           setSelectedPatients([...selectedPatients, patient.id]);
                         }
                       }}
                       className="w-5 h-5 rounded"
                     />
-                    <span
-                      className={`w-4 h-4 rounded-full ${
-                        urgencyLevels[patient.urgency].dot
-                      } shadow-lg`}
-                      title={urgencyLevels[patient.urgency].label}
-                    />
+                    <span className={`w-4 h-4 rounded-full ${URGENCY_LEVELS[patient.urgency].dot} shadow-lg`} title={URGENCY_LEVELS[patient.urgency].label} />
                   </div>
 
                   <div onClick={() => setSelectedPatient(patient)}>
                     <div className="mb-4">
-                      <h3 className="font-bold text-xl text-gray-800 mb-1">
-                        {patient.name}
-                      </h3>
-                      <p className="text-sm text-gray-600">
-                        ID: {patient.patient_id}
-                      </p>
+                      <h3 className="font-bold text-xl text-gray-800 mb-1">{patient.name}</h3>
+                      <p className="text-sm text-gray-600">ID: {patient.patient_id}</p>
                     </div>
 
                     <div className="space-y-3 text-sm">
@@ -1524,9 +1356,7 @@ await supabase.auth.signOut();
                         <Clock className="w-4 h-4 flex-shrink-0" />
                         <span>
                           Waiting <strong>{calculateWaitDays(patient.added_date)}</strong> days
-                          {calculateWaitDays(patient.added_date) > 30 && (
-                            <Bell className="w-3 h-3 inline ml-1 text-amber-600" />
-                          )}
+                          {calculateWaitDays(patient.added_date) > 30 && <Bell className="w-3 h-3 inline ml-1 text-amber-600" />}
                         </span>
                       </div>
 
@@ -1544,9 +1374,7 @@ await supabase.auth.signOut();
                       <div className="mt-4 pt-4 border-t-2 border-gray-300">
                         <div className="flex items-center gap-2 text-sm">
                           <Calendar className="w-4 h-4 text-blue-600" />
-                          <span className="font-bold text-gray-800">
-                            {new Date(patient.scheduled_date).toLocaleDateString()}
-                          </span>
+                          <span className="font-bold text-gray-800">{new Date(patient.scheduled_date).toLocaleDateString()}</span>
                         </div>
                       </div>
                     )}
@@ -1556,14 +1384,11 @@ await supabase.auth.signOut();
               {currentPatients.length === 0 && (
                 <div className="col-span-full text-center py-20">
                   <AlertCircle className="w-20 h-20 text-gray-300 mx-auto mb-4" />
-                  <p className="text-xl text-gray-500 font-medium">
-                    No patients found
-                  </p>
+                  <p className="text-xl text-gray-500 font-medium">No patients found</p>
                 </div>
               )}
             </div>
 
-            {/* Pagination */}
             <Pagination />
           </>
         ) : (
@@ -1572,14 +1397,8 @@ await supabase.auth.signOut();
       </div>
 
       {showAddModal && <AddPatientModal />}
-      {selectedPatient && (
-        <PatientDetailModal
-          patient={selectedPatient}
-          onClose={() => setSelectedPatient(null)}
-        />
-      )}
+      {selectedPatient && <PatientDetailModal patient={selectedPatient} onClose={() => setSelectedPatient(null)} />}
       {showBulkSchedule && <BulkScheduleModal />}
-      {showLoginModal && <LoginModal />}
     </div>
   );
 }
